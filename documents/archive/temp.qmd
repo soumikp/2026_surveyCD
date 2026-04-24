@@ -1,0 +1,726 @@
+---
+title: "Causal Discovery from Complex Survey Data"
+subtitle: "A Covariate-Adjusted and Weighted Framework"
+csl: referenceStyle.csl
+format:
+  pdf:
+    link-citations: true
+    colorlinks: true
+    citecolor: blue
+    pdf-engine: xelatex
+    number-sections: true
+    documentclass: article
+    mainfont: "Arial"
+    fontsize: 11pt
+    geometry:
+      - margin=1in
+    include-in-header:
+      text: |
+        \usepackage{amsmath, amssymb, amsthm, mathtools}
+        \usepackage{booktabs}
+        \usepackage{setspace}
+        \usepackage{xcolor}
+        \onehalfspacing
+        \newtheorem{theorem}{Theorem}
+        \newtheorem{proposition}{Proposition}
+        \newtheorem{definition}{Definition}
+        \newtheorem{assumption}{Assumption}
+        \newtheorem{remark}{Remark}
+        \DeclareMathOperator{\KL}{KL}
+        \DeclareMathOperator{\tr}{tr}
+        \DeclareMathOperator{\E}{\mathbb{E}}
+bibliography: references.bib
+filters:
+  - todo.lua
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE)
+```
+
+
+::: {#list-of-todos}
+:::
+
+
+\newpage
+
+# Introduction
+
+Survey questionnaires are among the most widely used instruments in psychological, behavioral, and health services research. They provide population-level data on latent constructs such as depression, well-being, social functioning, health-related quality of life that cannot be measured through clinical observation or administrative records alone. Yet, despite their prevalence, survey data present a fundamental analytic challenge: understanding not merely which variables are associated, but which variables causally drive others [(this is not just a survey data problem)]{.todo}. This distinction is not semantic. Knowing that financial hardship is correlated with poor mental health tells us little about whether interventions targeting financial need will improve mental health outcomes, whether the relationship operates through intermediate pathways, or whether the apparent association reflects a common upstream cause. Answering these questions requires causal knowledge, not associational knowledge.
+
+Causal discovery methods — data-driven algorithms that infer directed causal structure from observational data — offer a powerful and increasingly practical approach to this challenge (@Spirtes2001, @Pearl2009, @Glymour2019). 
+
+[Image of a Directed Acyclic Graph representing causal discovery]{.todo} 
+
+Unlike structural equation modeling (SEM), which requires investigators to fully specify the causal structure before fitting a model, causal discovery algorithms learn the structure objectively from data, subject to identifiability assumptions (@Zanga2022) [(maybe make that upstream/downstream comment about discovery and inference)]{.todo}. This property makes them especially valuable in domains where causal relationships are plausible but their precise ordering is unknown — a situation that describes the vast majority of psychological and social science research. Applications of causal discovery in psychology have grown substantially in recent years, spanning psychopathology (@McNally2017, @Briganti2023), academic achievement (@Quintana2023), eating disorders(@Anderson2023), and most recently, obsessive-compulsive disorder and depression (@Ni2025).
+
+Despite this growth, a critical assumption underlies every existing causal discovery algorithm: that observations are independent and identically distributed (i.i.d.). In practice, this assumption is routinely violated by the very data sources most commonly used in psychological and social research. Large-scale survey datasets — the National Health Interview Survey, the Behavioral Risk Factor Surveillance System, the Consumer Assessment of Healthcare Providers and Systems (CAHPS), the Health Behavior in School-Aged Children study — are collected using complex probability sampling designs that deliberately oversample certain demographic or clinical subgroups to ensure adequate representation of minority populations and clinical subpopulations (@Groves2009). 
+
+[Image of complex probability survey sampling design]{.todo} 
+
+These designs assign unequal selection probabilities to respondents, and the resulting data are not i.i.d. When survey weights, which encode the inverse of each respondent's selection probability, are ignored, the observed joint distribution of variables in the sample does not represent the joint distribution in the target population. This discrepancy is not merely a precision problem — it is a systematic bias that distorts conditional independence relationships, the very relationships that causal discovery algorithms rely upon to identify causal structure.
+
+To understand why this matters concretely, consider a health survey that oversamples Veterans with both high basic needs burden and poor health outcomes. In such a sample, the correlation between basic needs and health outcomes will be inflated relative to the true population relationship, because the joint distribution has been distorted by the sampling design. An unweighted causal discovery algorithm, presented with this distorted distribution, will infer spurious direct edges between variables that are in fact conditionally independent in the population once sampling design is accounted for. The result is a causal graph that reflects the sampling mechanism rather than the true data-generating process. Sampling-induced bias of this kind has long been recognized in the causal inference literature focused on treatment effect estimation (@Zanutto2005, @Wang2009, @Benedetti2024, @Vo2024), and recent work on causal mediation analysis confirms that ignoring survey weights in even moderately complex designs produces substantial bias in estimated causal effects (@RAND2024). Yet to our knowledge, no prior work has addressed survey weighting in the context of causal structure learning — that is, in recovering the causal graph itself rather than estimating effects along a pre-specified graph.
+
+This omission is particularly consequential for ordinal survey data. The dominant class of causal discovery algorithms for categorical data relies on standard multinomial Bayesian networks (BNs), which are well-known to be non-identifiable: multiple causal graphs can fit the observed data equally well, leaving the direction of many causal relationships undetermined (@Spirtes2001, @Chickering2002). This non-identifiability problem is separate from and compounds the survey weighting problem — even after correcting for sampling design, an analyst using a standard categorical BN cannot uniquely determine causal direction from observational ordinal data. @Ni2022 resolved this identifiability problem for ordinal data by showing that ordinal Bayesian networks (oBNs), which model conditional distributions using cumulative ordinal regression, are fully identifiable under mild regularity conditions: the ordinal structure of the data breaks the distributional equivalence that renders nominal categorical BNs non-identifiable. @Ni2025 subsequently developed a bootstrapped oBN algorithm for survey questionnaire data and demonstrated its utility in a psychological study of obsessive-compulsive disorder and depression. However, neither of these contributions addresses the survey weighting problem: the algorithms assume i.i.d. data and do not account for the complex sampling designs ubiquitous in the survey data they are intended to analyze.
+
+The present paper addresses this gap. We develop survey-weighted causal discovery methods spanning three major algorithm families and introduce a unified framework, the *survey-weighted ordinal Bayesian network* (`swa-oBN`), that simultaneously addresses both the non-identifiability of standard categorical BNs and the distributional bias induced by complex survey sampling [(okay but needs reframing - we do discuss survey weighting importance, which is fine, )]{.todo}. Specifically, our contributions are as follows.
+
+First, for score-based algorithms, we incorporate survey weights into the BIC scoring function through a pseudo-likelihood approach combined with Kish's (@Kish1965) effective sample size, yielding a survey-weighted pseudo-BIC that adjusts both the likelihood and the model complexity penalty for the sampling design. Applied to ordinal data via cumulative ordinal regression, this produces the `swa-oBN`, which is both fully identifiable and design-consistent.
+
+Second, for constraint-based algorithms, including the PC algorithm and the Fast Causal Inference (`FCI`) algorithm, we develop a survey-weighted conditional independence test based on design-adjusted regression via the R `survey` package (@Lumley2004), which replaces standard Gaussian or chi-squared tests with Wald tests that account for the complex sampling design.
+
+Third, for asymmetry-based algorithms, specifically `LiNGAM` (@Shimizu2006), we develop a weighted pseudo-population resampling procedure that restores i.i.d. structure by resampling from the observed data proportional to survey weights, recovering the target population distribution prior to causal discovery.
+
+Fourth, we establish formal large-sample theory for the `swa-oBN`. Under a joint superpopulation-and-design asymptotic framework, we prove that the survey-weighted pseudo-BIC consistently selects the true data-generating DAG — including full edge orientation within Markov equivalence classes, a property that neither categorical BNs nor constraint-based methods possess for ordinal data. These results extend the identifiability theory of @Ni2022 to the covariate-adjusted and survey-weighted setting.
+
+Fifth, beyond these theoretical contributions, our open-source implementation achieves substantial computational gains over existing ordinal BN software. The `OrdCDsvy` package employs hash-table-based score caching, which avoids redundant re-evaluation of node-level pseudo-BIC scores during the hill-climbing search. Because the score decomposition is local — the pseudo-BIC contribution of node $j$ depends only on its parent set — a hash table mapping parent-set signatures to previously computed scores eliminates the most expensive bottleneck in structure learning: repeated calls to the survey-weighted ordinal regression fitter. In our benchmarks, this caching strategy reduces wall-clock time by an order of magnitude or more compared to naive implementations, making bootstrapped `swa-oBN` with hundreds of resamples feasible on moderately sized survey datasets.
+
+Sixth, we demonstrate through simulation studies that ignoring survey weights in each of these algorithm families produces systematically biased causal graphs, and that the proposed survey-weighted variants recover the true causal structure.
+
+Seventh, we illustrate the practical utility of the `swa-oBN` in an application to data from the Consumer Assessment of Healthcare Providers and Systems (CAHPS) Clinician and Group Visit Survey administered to United States Veterans Affairs (VA) patients. The CAHPS survey, conducted using a stratified probability sample with substantial variation in selection probabilities across demographic and service utilization subgroups, provides ordinal measures of social determinants of health, healthcare experience quality, and health outcomes. Applying `swa-oBN` with bootstrapped uncertainty quantification, we uncover the causal structure among clusters of social needs, finding that \textcolor{blue}{fill in later}.
+
+[Overall I am struggling with the fact that we are showing causal model for ordinal but no applied dataset for the other classes. Maybe this needs a little more thought.]{.todo}
+
+The remainder of the paper is organized as follows. Section 2 reviews causal discovery methods and their key assumptions, with particular attention to the problems of non-identifiability and survey sampling. Section 3 presents the proposed survey-weighted methods for score-based, constraint-based, and asymmetry-based causal discovery. Section 4 establishes the large-sample theory for the `swa-oBN`, proving DAG selection consistency both within and across Markov equivalence classes. Section 5 presents simulation studies. Section 6 presents the CAHPS application and related discussion. Section 7 concludes.
+
+
+# Background
+
+## Causal Graphs and Bayesian Networks
+
+A directed acyclic graph (DAG) $\mathcal{G} = (\mathcal{V}, \mathcal{E})$ consists of a set of nodes $\mathcal{V} = \{X_1, \ldots, X_q\}$ representing random variables and a set of directed edges $\mathcal{E} \subset \mathcal{V} \times \mathcal{V}$ representing direct causal relationships, with no directed cycles. For a node $X_j$, let $\text{pa}(j) = \{k \in \mathcal{V} : k \to j\}$ denote the set of its parents, i.e., its direct causes. A Bayesian network (BN) is a pair $\mathcal{B} = (\mathcal{G}, P)$ in which the probability distribution $P$ factorizes with respect to $\mathcal{G}$ as
+
+$$P(X_1, \ldots, X_q \mid \mathcal{G}) = \prod_{j=1}^{q} P(X_j \mid X_{\text{pa}(j)}).$$
+
+When $\mathcal{G}$ is interpreted causally, that is, when directed edges are understood as causal relationships rather than mere statistical dependencies, the factorization above encodes the *Causal Markov Assumption*: each variable is conditionally independent of its non-descendants given its direct causes (@Spirtes2001, @Pearl2009, @Glymour2019). Together with the *Faithfulness Assumption* (@Glymour2019), which requires that all conditional independence relationships in the data are entailed by the graph structure and are not the product of parameter cancellation, the Causal Markov Assumption forms the theoretical bedrock of causal discovery (@uhler2013geometry; @zhalama2017sat). A third standard assumption, *Causal Sufficiency*, requires that all common causes of any two variables in the model are observed and included in $\mathcal{V}$. When Causal Sufficiency is relaxed, algorithms such as FCI output Partial Ancestral Graphs (PAGs) rather than DAGs, encoding uncertainty about the presence of latent confounders (@Pearl2009).
+
+Three broad families of algorithms have been developed for learning causal structure from observational data. Constraint-based algorithms, including the PC algorithm (@spirtes1991pc) and its extension FCI (@spirtes1995fci), test for conditional independence among pairs of variables and use detected independence patterns — particularly v-structures of the form $X_i \to X_k \leftarrow X_j$ — to orient edges. Score-based algorithms, including the Greedy Equivalence Search (GES; @Chickering2002) and the ordinal Bayesian network (@Ni2022), assign a goodness-of-fit score to candidate graphs and search for the highest-scoring structure, typically using the Bayesian information criterion (BIC). Asymmetry-based algorithms, most prominently LiNGAM (@Shimizu2006), exploit distributional asymmetries between cause and effect — specifically, the independence between a cause and the residual noise of its effect — to identify causal direction beyond the Markov equivalence class. Each family rests on the i.i.d. assumption as a foundational requirement for its statistical guarantees.
+
+
+## Why Survey Weighting Matters for Causal Discovery
+
+The distortion introduced by complex survey sampling is not merely a variance problem — it is a systematic bias problem for causal structure learning. To see this, consider the following stylized example. Suppose the true population causal structure is $X \to Y \to Z$, where $X$ represents basic financial need, $Y$ represents access to healthcare, and $Z$ represents well-being. In the population, $X$ and $Z$ are conditionally independent given $Y$: once healthcare access is known, financial need carries no additional information about well-being. Now suppose the survey oversamples units where both $X$ is high and $Z$ is low — a common pattern in health surveys that deliberately capture high-need, low-outcome populations. In the resulting sample, $X$ and $Z$ are no longer conditionally independent given $Y$: the sampling mechanism has introduced a spurious association between the upstream cause and the downstream outcome. An unweighted causal discovery algorithm will observe this spurious conditional dependence, fail to remove the edge $X - Z$, and conclude either that there is a direct causal effect of $X$ on $Z$, or that $Z$ causes $X$. Both conclusions are wrong.
+
+This mechanism generalizes across algorithm families. For constraint-based algorithms (PC, FCI), the conditional independence tests that drive skeleton discovery and edge orientation are corrupted by the sampling-distorted conditional distributions. Tests that should return $p > \alpha$ (indicating independence) return $p < \alpha$ because the sampling design has inflated the apparent association. For score-based algorithms (oBN, GES), the likelihood function is computed over the sample distribution rather than the population distribution, causing the BIC to favor denser graphs with spurious edges. For asymmetry-based algorithms (LiNGAM), the non-Gaussian distributional properties that identify causal direction are distorted by the sampling mechanism, potentially reversing the apparent causal direction. In all three cases, the result is not merely imprecision — it is systematic structural misidentification that does not diminish with increasing sample size, because the bias is determined by the sampling design, not the sample size.
+
+This problem is distinct from, but related to, the well-studied problem of selection bias in causal inference. Selection bias in the potential outcomes framework refers to self-selection into treatment; the survey sampling problem is a design-induced form of selection that affects the joint distribution of all variables, not merely the assignment mechanism for a specific treatment. The appropriate correction — inverse probability weighting of the likelihood function — is analogous in structure but applies at the level of the causal structure learning algorithm itself rather than at the level of treatment effect estimation. To our knowledge, no prior causal discovery work has implemented this correction. The closest work in the causal inference literature addresses the use of survey weights in treatment effect estimation (@zanutto2006comparison; @liang2026causal) and causal mediation analysis (@RAND2024), not causal structure learning.
+
+
+## Survey Sampling and the i.i.d. Assumption
+
+Large-scale surveys in psychology, public health, and social science rarely use simple random sampling. Instead, they employ complex probability sampling designs — typically involving stratification, clustering, and deliberate oversampling of certain subpopulations — to achieve representation of minority groups and to control survey costs (@Lumley2004, @Groves2009). Under such designs, each respondent $i$ is selected with a known, non-uniform probability $\pi_i$, and is assigned a survey weight $w_i = 1/\pi_i$ that represents the number of population members for whom respondent $i$ serves as a proxy. The VA CAHPS survey, for example, oversamples Veterans belonging to racial and ethnic minority groups, Veterans in rural areas, and Veterans with high healthcare utilization, producing weights that can vary by an order of magnitude across respondents.
+
+The consequence of unequal selection probabilities is that the observed sample distribution is not equal to the target population distribution. Formally, if $P_{\text{pop}}(X)$ denotes the true population joint distribution and $P_{\text{samp}}(X)$ the distribution of the selected sample, then
+
+$$P_{\text{samp}}(X = x) \propto \pi(x) \cdot P_{\text{pop}}(X = x),$$
+
+where $\pi(x)$ is the selection probability for a unit with covariate pattern $x$. When $\pi(x)$ is correlated with the outcome variables of interest — as is almost always the case in health surveys, where high-need, high-utilization subgroups are oversampled — $P_{\text{samp}}$ differs systematically from $P_{\text{pop}}$. In particular, marginal distributions, pairwise correlations, and conditional independence relationships may all differ between the sample and the population. Causal discovery algorithms applied to the unweighted sample data therefore operate on a distorted version of the joint distribution, and the resulting causal graphs reflect the sampling mechanism rather than the true population causal structure.
+
+To recover population-representative estimates from a complex survey, analysts apply the Horvitz-Thompson (HT) estimator (@horvitz1952generalization), weighting each observation by $w_i = 1/\pi_i$ to correct for unequal selection probabilities. For regression models, the survey-weighted pseudo-likelihood replaces the ordinary likelihood with
+
+$$\tilde{\ell}(\theta) = \sum_{i=1}^n w_i \log p(x_i; \theta),$$
+
+which is an asymptotically unbiased estimator of the population log-likelihood $N \cdot E_{\text{pop}}[\log p(X; \theta)]$ under standard regularity conditions (@Lumley2004). Maximizing the pseudo-likelihood thus recovers asymptotically consistent estimates of the population parameters, rather than sample-specific parameters. The penalty term of the BIC must also be adjusted under survey weighting, because the relevant sample size for model selection is not the raw count $n$ but the effective sample size $n_{\text{eff}}$, which accounts for the precision loss induced by unequal weights. Kish (@Kish1965) proposed the widely used estimator
+
+$$n_{\text{eff}} = \frac{\left(\sum_{i=1}^n w_i\right)^2}{\sum_{i=1}^n w_i^2},$$
+
+which reduces to $n$ when all weights are equal. When weights are highly variable — as in surveys with substantial oversampling — $n_{\text{eff}}$ can be substantially smaller than $n$, reflecting the reduced statistical information available for inference. Substituting $n_{\text{eff}}$ for $n$ in the BIC penalty produces the survey-adjusted pseudo-BIC, which appropriately penalizes model complexity relative to the effective rather than nominal sample size.
+
+
+## [The Non-Identifiability Problem for Categorical Data (not sure if this really is background since Yang's paper already adjusts for this)]{.todo}
+
+A central challenge for causal discovery with categorical data is the non-identifiability of standard BN models. Two DAGs are Markov equivalent if they encode exactly the same set of conditional independence relationships. Markov equivalent DAGs cannot be distinguished from one another on the basis of observational data alone, as they imply identical joint distributions. For continuous data under Gaussian or non-Gaussian additive noise models, Markov equivalence classes are often small or can be broken entirely by exploiting distributional properties (@Bhlmann2014; @Shimizu2006). For categorical data modeled with multinomial distributions, however, Markov equivalence is a far more severe problem: as established by @Chickering2002, multinomial BNs are score-equivalent in the sense that Markov equivalent DAGs achieve identical maximum likelihood and hence identical BIC scores. This means that for any fitted causal model $X \to Y$ under a multinomial BN, there exists a reverse model $Y \to X$ that fits the data equally well. The direction of many — potentially all — causal relationships remains undetermined.
+
+@Ni2022 resolved this non-identifiability for ordinal categorical data by proposing the ordinal Bayesian network (oBN). Rather than modeling conditional distributions with unrestricted multinomial tables, the oBN models each conditional distribution $P(X_j \mid X_{\text{pa}(j)})$ using cumulative ordinal regression:
+
+$$P(X_j \leq \ell \mid X_{\text{pa}(j)}) = F\!\left(\gamma_{j\ell} - \sum_{k \in \text{pa}(j)} \beta_{jk} X_k - \alpha_j\right), \quad \ell = 1, \ldots, L_j,$$
+
+where $F$ is a link function (e.g., probit), $\gamma_{j\ell}$ are ordered threshold parameters, $\beta_{jk}$ are regression coefficients encoding the directional causal effect of parent $X_k$ on child $X_j$, and $\alpha_j$ is an intercept. The key theoretical result is that for ordinal variables with $L > 2$ levels, the model $X \to Y$ and its reverse $Y \to X$ are generically not distribution-equivalent: the ordinal regression structure of one direction cannot be mimicked by the reverse direction for almost all parameter values. @Ni2022 proved this formally for the bivariate case, and @Ni2025 provided asymptotic consistency guarantees for multivariate data by showing that the BIC of the true generating DAG converges to $-\infty$ relative to any Markov-equivalent alternative, making the correct causal structure uniquely identifiable in the large-sample limit. This identifiability relies on the ordinal structure: variables with only two levels (binary variables) do not benefit from this result, as ordinal and nominal binary distributions coincide. The `OrdCD` R package (@NiOrdCD2023) implements this algorithm with hill-climbing search, multiple random restarts, and bootstrapping for uncertainty quantification.
+
+
+## The CAHPS Survey and VA Population
+
+The Consumer Assessment of Healthcare Providers and Systems (CAHPS) Clinician and Group Visit Survey is a standardized, validated instrument for measuring patients' experiences with healthcare providers and the social circumstances that influence health (@AHRQ2023). The version administered by the Veterans Health Administration (VHA) — the largest integrated healthcare system in the United States, serving over nine million enrolled Veterans — includes measures of healthcare visit experience quality (communication, respect, listening, timeliness), social determinants of health across fifteen domains (financial need, housing, food security, transportation, caregiving, employment, legal need, social isolation, discrimination, and others), and health outcomes (overall health, mental/emotional health, and functional well-being). The social determinants section employs a three-category ordinal response format ("No support needed," "Needed support and got it," "Needed support but did not get it") for each domain, capturing both the presence of need and whether that need was met — a substantively richer measure than simple need prevalence.
+
+Veterans enrolled in VHA care represent a population with substantially elevated social and medical complexity. Compared to non-Veterans and to Veterans not engaged in VHA services, VHA-enrolled Veterans have lower physical and mental health functioning, higher rates of PTSD and depression, greater food insecurity and housing instability, and lower socioeconomic resources (@duan2018; @OHE2022). Social determinants of health have been identified as significant predictors of Veteran health outcomes, but their causal ordering — which needs drive which outcomes, and through what pathways — remains poorly understood (@duan2018). Existing studies are almost exclusively associational, relying on regression models that assume, rather than discover, causal structure (@Montgomery2020). The CAHPS data are collected using a stratified probability sample with substantial variation in selection probabilities across demographic groups, making them a canonical case where survey weighting is essential for valid population inference, and where its importance for causal structure learning has never been examined.
+
+
+# Methods
+
+This section presents survey-weighted causal discovery methods for three algorithm families: score-based (Section 3.1), constraint-based (Section 3.2), and asymmetry-based (Section 3.3). Section 3.4 presents the bootstrapped swa-oBN algorithm with confounder adjustment, which constitutes the primary contribution for ordinal survey data. Throughout, let $\mathbf{y} = (y_1, \ldots, y_n)$ denote the observed sample of $n$ respondents, $\mathbf{w} = (w_1, \ldots, w_n)$ their associated survey weights, and $\mathbf{X} = (X_1, \ldots, X_q)$ the random vector of $q$ variables under study.
+
+## Survey-Weighted Score-Based Causal Discovery: The swa-oBN
+
+### Survey-Weighted Pseudo-BIC
+
+Score-based causal discovery algorithms evaluate candidate DAGs by computing a goodness-of-fit score. The standard BIC for a DAG $\mathcal{G}$ takes the form
+
+$$\text{BIC}(\mathcal{G} \mid \mathbf{y}) = -2 \sum_{i=1}^{n} \log \hat{p}(y_i \mid \mathcal{G}) + K \log(n),$$
+
+where $\hat{p}(y_i \mid \mathcal{G})$ is the joint likelihood evaluated at the maximum likelihood estimates, $K$ is the number of free model parameters, and $n$ is the sample size. Under simple random sampling, maximizing this BIC recovers the population-level causal structure consistently. Under complex survey sampling, however, the ordinary likelihood $\sum_{i=1}^n \log \hat{p}(y_i \mid \mathcal{G})$ targets the sample distribution rather than the population distribution, producing biased parameter estimates and a biased model selection criterion.
+
+We replace the ordinary likelihood with the survey-weighted pseudo-likelihood (Binder, 1983; Lumley, 2010):
+
+$$\tilde{\ell}(\theta \mid \mathcal{G}) = \sum_{i=1}^{n} w_i \log p(y_i \mid \mathcal{G}, \theta).$$
+
+Under standard regularity conditions, $\tilde{\ell}(\theta \mid \mathcal{G})$ is an asymptotically unbiased estimator of $N \cdot E_{\text{pop}}[\log p(Y \mid \mathcal{G}, \theta)]$, where $N$ is the population size and $E_{\text{pop}}$ denotes expectation under the true population distribution. Maximizing $\tilde{\ell}(\theta \mid \mathcal{G})$ with respect to $\theta$ therefore recovers the population-consistent pseudo-maximum likelihood estimate $\hat{\theta}^w$.
+
+The penalty term of the BIC must also be modified. The BIC penalty $K \log(n)$ is calibrated to the amount of statistical information in the data, which under complex survey sampling is not $n$ but the effective sample size $n_{\text{eff}}$. Substituting Kish's (1965) effective sample size formula
+
+$$n_{\text{eff}} = \frac{\left(\sum_{i=1}^n w_i\right)^2}{\sum_{i=1}^n w_i^2}$$
+
+yields the survey-weighted pseudo-BIC:
+
+$$\widetilde{\text{BIC}}(\mathcal{G} \mid \mathbf{y}, \mathbf{w}) = -2\, \tilde{\ell}(\hat{\theta}^w \mid \mathcal{G}) + K \log(n_{\text{eff}}).$$
+
+When all weights are equal (simple random sample), $n_{\text{eff}} = n$ and the pseudo-BIC reduces exactly to the standard BIC. When weights are highly variable — as in surveys with substantial oversampling — $n_{\text{eff}} \ll n$, and the pseudo-BIC applies a heavier penalty to complex models, appropriately reflecting the reduced information available in the weighted sample. Lumley and Scott (2015) established AIC and BIC for survey-weighted models on formal information-theoretic grounds, validating this approach for model selection from complex survey data.
+
+### Ordinal Regression Scorer
+
+For ordinal variables $X_j \in \{1, \ldots, L_j\}$, the node-specific score for node $j$ given parent set $\text{pa}(j)$ is computed via cumulative probit ordinal regression (Ni and Mallick, 2022):
+
+$$P(X_j \leq \ell \mid X_{\text{pa}(j)}) = \Phi\!\left(\gamma_{j\ell} - \sum_{k \in \text{pa}(j)} \beta_{jk} X_k - \alpha_j\right), \quad \ell = 1, \ldots, L_j,$$
+
+where $\Phi$ is the standard normal CDF, $\gamma_{j\ell}$ are ordered threshold parameters with $\gamma_{j1} = 0$ fixed for identifiability, $\beta_{jk}$ are causal effect coefficients, and $\alpha_j$ is an intercept. For binary nodes ($L_j = 2$), the model reduces to a weighted probit regression fitted via the `svyglm` function with `family = quasibinomial(link = "probit")` in R's survey package (Lumley, 2004). For ordinal nodes with $L_j > 2$ levels, the model is fitted via `svyolr` in the same package, which implements Binder's (1983) design-based variance estimator for survey-weighted proportional odds models. The node-specific pseudo-BIC contribution is then
+
+$$\widetilde{\text{BIC}}_j(\text{pa}(j) \mid \mathbf{y}, \mathbf{w}) = -2\,\tilde{\ell}_j(\hat{\theta}_j^w) + K_j \log(n_{\text{eff}}),$$
+
+where $\tilde{\ell}_j$ is the pseudo-likelihood of node $j$ given its parents and $K_j = (L_j - 1) + \sum_{k \in \text{pa}(j)}(L_k - 1)$ counts the free parameters for this node. The total graph score decomposes as $\widetilde{\text{BIC}}(\mathcal{G}) = \sum_{j=1}^q \widetilde{\text{BIC}}_j(\text{pa}(j))$, following the standard local score decomposition of BN structure learning (Chickering, 2002).
+
+### Hill-Climbing Search and the swa-oBN Algorithm
+
+Structure search is performed by a greedy hill-climbing algorithm (Algorithm 1) that iterates over three move types — edge addition, edge deletion, and edge reversal — accepting any move that strictly decreases $\widetilde{\text{BIC}}(\mathcal{G})$ and terminates when no improving move exists. Acyclicity is checked at each candidate move using the `is.DAG` function from the `gRbase` package (Højsgaard et al., 2012). To mitigate sensitivity to local optima, the algorithm is run from $R$ random initial DAGs and the solution with the minimum total $\widetilde{\text{BIC}}$ is retained (Ni et al., 2025). A blacklist matrix $\mathbf{B}$ encodes domain knowledge constraints: if $\mathbf{B}_{ij} = 1$, the edge $X_j \to X_i$ is forbidden and no move introducing it is considered. In the CAHPS application, outcomes (Well-being and Mental Health) are blacklisted from having any outgoing edges, encoding the substantive constraint that these are terminal nodes in the causal system.
+
+We refer to the resulting algorithm as the **survey-weighted asymptotically identified ordinal Bayesian network (swa-oBN)**.
+
+**Algorithm 1: swa-oBN Hill-Climbing**
+
+```
+Input: data y, weights w, n_eff, link F, ic criterion, 
+       blacklist B, max iterations T, random restarts R
+Output: estimated DAG G*
+
+best_ic ← ∞; G* ← ∅
+for r = 1, ..., R do
+  Initialize G from empty DAG (r=1) or random DAG
+  Enforce blacklist: G ← G ∧ ¬B
+  Compute node scores: s_j ← BIC̃_j(pa_G(j)) for all j
+  repeat
+    Improvement ← FALSE
+    for each candidate move m ∈ {add, delete, reverse} do
+      if m is acyclic and respects B then
+        Compute Δ ← change in s_j (and s_k for reversals)
+        if Δ < 0 then accept m, update s_j, set Improvement ← TRUE
+    until Improvement = FALSE or iter > T
+  if BIC̃(G) < best_ic then G* ← G; best_ic ← BIC̃(G)
+return G*
+```
+
+### Bootstrapped Uncertainty Quantification
+
+A single point estimate of a causal DAG is subject to sampling variability. Following Ni et al. (2025) and Briganti et al. (2023), we quantify uncertainty through bootstrapping. For $b = 1, \ldots, B$, we draw a bootstrap resample $\mathbf{y}^{(b)}$ of size $n$ with replacement from the observed data, preserving the associated weights $\mathbf{w}^{(b)}$, and apply Algorithm 1 to each bootstrap sample. The edge inclusion probability matrix $\hat{\mathbf{P}} = [\hat{P}_{jk}]$ is computed as
+
+$$\hat{P}_{jk} = \frac{1}{B} \sum_{b=1}^{B} \mathbb{1}\left[X_k \to X_j \in \hat{\mathcal{G}}^{(b)}\right],$$
+
+where $\mathbb{1}[\cdot]$ is the indicator function. An entry $\hat{P}_{jk}$ close to 1 indicates that the directed edge $X_k \to X_j$ is consistently recovered across bootstrap resamples; an entry close to 0 indicates consistent absence; an entry near 0.5 indicates high uncertainty. Following Briganti et al. (2023), edges with $\hat{P}_{jk} > 0.85$ are retained in the final consensus graph as highly stable, while edges with $0.50 < \hat{P}_{jk} \leq 0.85$ are reported as present but less certain.
+
+### Confounder Adjustment
+
+Survey questionnaire data frequently include demographic variables — age, race/ethnicity, sex, education — that are potential confounders of the causal relationships among substantive variables but are not themselves targets of causal discovery. The swa-oBN accommodates this through a confounder matrix $\mathbf{Z}$: a set of variables included as covariates in every node-level ordinal regression but excluded from the DAG structure entirely. No edges to or from variables in $\mathbf{Z}$ are learned. Formally, the node-specific regression for node $j$ with parents $\text{pa}(j)$ becomes
+
+$$P(X_j \leq \ell \mid X_{\text{pa}(j)}, \mathbf{Z}) = \Phi\!\left(\gamma_{j\ell} - \sum_{k \in \text{pa}(j)} \beta_{jk} X_k - \sum_{m} \delta_{jm} Z_m - \alpha_j\right),$$
+
+where $\delta_{jm}$ are confounder regression coefficients estimated but not reported as causal effects. This ensures that the recovered edges among $\mathbf{X}$ variables represent causal relationships net of confounding by measured demographic characteristics, without distorting the causal graph by treating demographics as nodes.
+
+## Survey-Weighted Constraint-Based Causal Discovery
+
+### The Conditional Independence Test Under Survey Weighting
+
+Constraint-based algorithms — including PC (Spirtes et al., 2001) and FCI (Spirtes et al., 1995) — rely on a sequence of conditional independence tests. Specifically, they test the null hypothesis $H_0: X_i \perp\!\!\!\perp X_j \mid \mathbf{S}$ for variable pairs $(i, j)$ conditional on a set $\mathbf{S} \subseteq \mathcal{V} \setminus \{i, j\}$. For continuous data under simple random sampling, these tests are typically implemented via Fisher's Z-transformation of partial correlations. For complex survey data, the standard partial correlation test is invalid because it fails to account for the non-i.i.d. structure of the observations.
+
+We propose replacing the standard conditional independence test with a design-adjusted Wald test based on survey-weighted regression. Specifically, to test $X_i \perp\!\!\!\perp X_j \mid \mathbf{S}$, we regress $X_i$ on $X_j$ and $\mathbf{S}$ using a survey-weighted generalized linear model via `svyglm` in R's survey package (Lumley, 2004):
+
+$$X_i \sim X_j + X_{S_1} + \cdots + X_{S_{|\mathbf{S}|}},$$
+
+with survey design specified via `svydesign(ids = ~1, weights = ~w)`. For continuous variables, this is a weighted linear regression; for binary variables, a `quasibinomial` link is used. The $p$-value returned is the design-adjusted Wald test $p$-value for the coefficient of $X_j$, which incorporates the survey weights and accounts for the complex sampling design in its standard error computation (Lumley and Scott, 2014). The null of conditional independence is rejected when this $p$-value falls below the significance threshold $\alpha$.
+
+This test is design-consistent: under the null $X_i \perp\!\!\!\perp X_j \mid \mathbf{S}$ in the population, the Wald test $p$-value converges to a uniform distribution on $[0, 1]$ as $n_{\text{eff}} \to \infty$, ensuring the correct Type I error rate. Under the alternative, the test is consistent because the population-level conditional dependence produces a non-zero regression coefficient for $X_j$ regardless of the survey design, and the weighted regression recovers this coefficient consistently.
+
+### Survey-Weighted PC and FCI Algorithms
+
+The survey-weighted conditional independence test described above can be plugged directly into the standard `pc` and `fci` functions from the `pcalg` R package (Kalisch et al., 2012) via the `indepTest` argument, which accepts a user-specified function of the form `function(x, y, S, suffStat)`. The sufficient statistic `suffStat` passes the raw data matrix and the weight vector to the test function. No other modification to the PC or FCI algorithm skeleton is required — the survey weighting is fully encapsulated within the conditional independence test. The resulting algorithms, which we call **swa-PC** and **swa-FCI**, output a CPDAG and a PAG respectively, with the same interpretation as their unweighted counterparts but with conditional independencies now estimated from the population-representative weighted distribution rather than the biased sample distribution.
+
+An important consideration is that the swa-PC and swa-FCI algorithms inherit the non-identifiability of standard PC and FCI for ordinal categorical data: they can identify at most the Markov equivalence class of the true DAG, leaving the direction of some edges undetermined. For applications where full causal direction is required — as in the CAHPS analysis — the swa-oBN is preferred. However, swa-PC and swa-FCI retain value when the goal is skeleton discovery (identifying which variables are causally adjacent) rather than full edge orientation, when the sufficiency assumption is plausible but not certain (favoring FCI over swa-oBN), or when continuous variables are present in the data.
+
+### A Hybrid Approach: swa-PC + swa-oBN
+
+For ordinal data, the two-step hybrid algorithm of Ni et al. (2025) generalizes naturally to the survey-weighted setting. In the first step, swa-PC is applied to determine the skeleton and orient v-structures, producing a CPDAG with some directed and some undirected edges. In the second step, for each pair of nodes connected by an undirected edge in the CPDAG, the bivariate swa-oBN is applied using exhaustive search over the three possible bivariate DAGs (null, $X_i \to X_j$, $X_j \to X_i$) to determine the edge orientation. This hybrid approach, which we call **swa-PC+oBN**, combines the computational efficiency of PC for skeleton discovery with the identifiability of oBN for edge orientation, and benefits from survey weighting at both stages.
+
+## Survey-Weighted Asymmetry-Based Causal Discovery: swa-LiNGAM
+
+### The LiNGAM Identifiability Mechanism and Survey Weighting
+
+LiNGAM (Shimizu et al., 2006) assumes a linear structural equation model in which each variable is a linear function of its causes plus an independent, non-Gaussian noise term:
+
+$$X_j = \sum_{k \in \text{pa}(j)} b_{jk} X_k + \varepsilon_j, \quad \varepsilon_j \sim F_j,$$
+
+where $F_j$ is a non-Gaussian distribution and all $\varepsilon_j$ are mutually independent. The identifiability of LiNGAM rests on the asymmetry between the cause and effect under non-Gaussian noise: in the true causal direction, the cause $X_k$ and the residual $\hat{\varepsilon}_j = X_j - \hat{b}_{jk} X_k$ are independent; in the reverse direction, the residual is dependent on the putative cause. This independence-based asymmetry is estimated via independent component analysis (ICA; Hyvärinen et al., 2001).
+
+Complex survey sampling distorts this identifiability mechanism because the non-Gaussian distributional signature that ICA uses to distinguish causal direction is a population-level property, not a sample-level property. When the sample distribution differs from the population distribution — as it does under stratified oversampling — the residual independence properties are computed on the wrong distribution, potentially reversing the apparent causal direction.
+
+### Pseudo-Population Resampling
+
+We address this via a **weighted pseudo-population bootstrap** (Efron, 1992; Rao and Wu, 1988). Rather than applying LiNGAM directly to the biased sample, we first reconstruct an approximately i.i.d. pseudo-population by resampling from the observed data with replacement according to probabilities proportional to the survey weights:
+
+$$\text{prob}_i = \frac{w_i}{\sum_{j=1}^n w_j}, \quad i = 1, \ldots, n.$$
+
+A pseudo-population resample $\mathbf{y}^{(b)}$ of size $n$ drawn with these probabilities has the property that its empirical distribution approximates the population distribution $P_{\text{pop}}$, because units with higher weights — representing larger portions of the population — are drawn with proportionally higher probability. Standard LiNGAM is then applied to each pseudo-population resample. This procedure is repeated $B$ times, and edges are retained by majority vote: an edge $X_k \to X_j$ is included in the consensus graph if it appears in more than half of the $B$ LiNGAM solutions. We call this procedure **swa-LiNGAM**.
+
+The weighted pseudo-population bootstrap has an established theoretical basis: Rao and Wu (1988) showed that resampling with probability proportional to weights consistently estimates the sampling distribution of weighted estimators, and the approach has been widely used for variance estimation in complex surveys (Efron, 1992; Rao et al., 1992). In the LiNGAM context, the key property is that each pseudo-population resample is approximately i.i.d. from $P_{\text{pop}}$, restoring the distributional conditions under which LiNGAM's ICA-based identification is valid.
+
+A practical consideration is that swa-LiNGAM requires the substantive variables to be continuously measured and non-Gaussian — conditions met by many health and behavioral outcomes but not by ordinal survey response items. For ordinal data from the CAHPS instrument, the swa-oBN is the appropriate primary method; swa-LiNGAM is presented for completeness and for settings where continuous non-Gaussian variables are present in the data.
+
+## Choosing Among Methods and the swa-oBN as the Primary Recommendation
+
+The three survey-weighted algorithms address complementary settings, and the choice among them should be guided by data type and the strength of available assumptions. Table 1 summarizes the key features.
+
+**Table 1: Survey-Weighted Causal Discovery Methods — Comparison**
+
+| Method | Data type | Identifiable? | Confounders allowed? | Blacklist support | Primary use |
+|---|---|---|---|---|---|
+| swa-oBN | Ordinal (≥3 levels) | Yes (fully) | Via Z matrix | Yes | Primary for ordinal survey data |
+| swa-PC | Mixed/continuous | No (CPDAG only) | Via FCI extension | Yes | Skeleton discovery, mixed data |
+| swa-FCI | Mixed/continuous | No (PAG only) | Yes (latent confounders) | Yes | When unobserved confounders plausible |
+| swa-PC+oBN | Ordinal | Yes (for undirected edges) | Partial | Partial | Efficient hybrid for ordinal data |
+| swa-LiNGAM | Continuous, non-Gaussian | Yes | No | No | Continuous non-Gaussian outcomes |
+
+For ordinal psychological and health survey data — the primary target of this paper — the swa-oBN is the recommended method. It uniquely combines: (1) survey-weight correction via pseudo-BIC with Kish effective sample size; (2) full causal identifiability from the ordinal regression structure; (3) confounder adjustment via the $\mathbf{Z}$ matrix; (4) edge blacklisting for domain knowledge constraints; and (5) bootstrapped uncertainty quantification. The swa-PC and swa-LiNGAM methods serve as complementary tools for sensitivity analysis and for settings with continuous variables.
+
+## Implementation
+
+All methods are implemented in the open-source R package **OrdCDsvy**, available on CRAN. The primary user-facing function is `OrdCD()`, which extends the `OrdCD` function of Ni et al. (2025) with the `weights`, `Z`, `blacklist`, and `boot` arguments. Survey-weighted PC and FCI are implemented via the `swa_pc()` and `swa_fci()` wrapper functions, which interface directly with the `pcalg` package (Kalisch et al., 2012). Survey-weighted LiNGAM is available via `swa_lim()`. All functions accept standard R `svydesign` objects from the survey package (Lumley, 2004) or raw weight vectors. Computation is parallelizable across bootstrap resamples via the `parallel` argument. The package includes vignettes reproducing all simulation studies and the CAHPS application.
+
+A critical implementation feature is the use of **hash-table-based score caching** within the hill-climbing search. Because the pseudo-BIC decomposes locally — the score contribution of node $j$ depends only on its parent set $\text{pa}(j)$ — the algorithm can store previously computed node scores in a hash table keyed by the parent-set signature. During hill climbing with multiple random restarts and bootstrapping, the same parent-set configurations are evaluated repeatedly; the hash table ensures each configuration is scored at most once, with subsequent lookups returning the cached value in $O(1)$ time. Since fitting a survey-weighted ordinal regression via `svyolr` is by far the dominant computational cost per evaluation, this caching eliminates the principal bottleneck. In our benchmarks, hash-table caching reduces total computation time by an order of magnitude or more compared to the original `OrdCD` implementation, making bootstrapped `swa-oBN` with $B = 500$ resamples and $R = 10$ random restarts practical on datasets with $q = 10$--$15$ variables and $n = 5{,}000$--$50{,}000$ respondents.
+
+
+# Theoretical Properties {#sec-theory}
+
+This section establishes the large-sample properties of the swa-oBN. We show that under standard survey design conditions and the ordinal regression specification of @Ni2022, the survey-weighted pseudo-BIC consistently selects the true data-generating DAG — including full edge orientation within Markov equivalence classes. All proofs are given in Appendix A.
+
+## Asymptotic Framework
+
+The analysis requires a joint asymptotic framework that accounts for two sources of randomness: the superpopulation generating the finite population, and the sampling design selecting units from it.
+
+Let $\xi$ denote a superpopulation model with true causal DAG $\mathcal{G}^*$ and parameters $\theta^*$. For each population size $N$, a finite population $U_N = \{1, \ldots, N\}$ is generated as $N$ independent draws from $\xi$. From $U_N$, a probability sample $S_n$ of size $n = n(N)$ is drawn according to a sampling design $p_N(S)$ with known first-order inclusion probabilities $\pi_i = \Pr(i \in S_n)$ and survey weights $w_i = 1/\pi_i$. We require $N \to \infty$ and $n \to \infty$ with sampling fraction $n/N \to f \in [0, 1)$. All convergence statements are under the joint (superpopulation $\times$ design) probability.
+
+
+## Assumptions
+
+We organize the assumptions into four groups: causal, parametric, survey design, and regularity.
+
+### Causal Assumptions
+
+\begin{assumption}[Causal Sufficiency]
+\label{as:suff}
+All common causes of any pair $(X_j, X_k)$ in $\mathbf{X} = (X_1, \ldots, X_q)$ are included in the measured variables $\mathbf{X} \cup \mathbf{Z}$.
+\end{assumption}
+
+\begin{assumption}[Causal Markov Property]
+\label{as:markov}
+The superpopulation distribution $P_\xi(\mathbf{X})$ factorizes with respect to the true causal DAG $\mathcal{G}^*$:
+$$P_\xi(\mathbf{X}) = \prod_{j=1}^{q} P_\xi(X_j \mid X_{\mathrm{pa}(j)}).$$
+\end{assumption}
+
+\begin{assumption}[Faithfulness]
+\label{as:faith}
+Every conditional independence in $P_\xi$ is entailed by the Markov property of $\mathcal{G}^*$. That is, $X_A \perp\!\!\!\perp X_B \mid X_C$ in $P_\xi$ if and only if $A$ and $B$ are $d$-separated by $C$ in $\mathcal{G}^*$.
+\end{assumption}
+
+
+### Parametric Assumptions
+
+Let $X_j \in \{1, \ldots, L_j\}$ with $L_j \geq 3$ for each $j = 1, \ldots, q$.
+
+\begin{assumption}[Ordinal Regression Specification]
+\label{as:ord}
+Each conditional distribution under the true DAG $\mathcal{G}^*$ follows a cumulative link model:
+$$P_\xi(X_j \leq \ell \mid X_{\mathrm{pa}(j)}, \mathbf{Z}) = F\!\left(\gamma_{j\ell} - \sum_{k \in \mathrm{pa}(j)} \beta_{jk} X_k - \delta_j' \mathbf{Z} - \alpha_j\right), \quad \ell = 1, \ldots, L_j,$$
+where $F$ is a known, strictly increasing link function (e.g., probit), $\gamma_{j1} < \cdots < \gamma_{j,L_j} = \infty$ are threshold parameters with $\gamma_{j1} = 0$, $\beta_{jk}$ are parent effect parameters with $\beta_{jk,1} = 0$, $\delta_j$ are covariate adjustment parameters, and $\alpha_j$ is an intercept. The covariate vector $\mathbf{Z}$ is not a node in the DAG and enters every node's conditional identically across candidate DAGs.
+\end{assumption}
+
+\begin{remark}
+We restrict the state space to $L_j \ge 3$ because the unique identifiability of the ordinal Bayesian network relies on the asymmetry of the cumulative link function across multiple thresholds. If binary nodes ($L_j = 2$) are present, the conditional model collapses to a standard binary regression, and causal directionality between two binary nodes is only identifiable up to the Markov equivalence class unless additional structural assumptions are made.
+\end{remark}
+
+\begin{assumption}[Ordinal Identifiability]
+\label{as:ident}
+Let $\mathcal{G}_1$ and $\mathcal{G}_2$ be any two Markov-equivalent DAGs, and let $\theta_1^*$ denote the true parameter under $\mathcal{G}_1 = \mathcal{G}^*$. Define the pseudo-true parameter under $\mathcal{G}_2$ as $\theta_2^\dagger = \arg\max_\theta \sum_{\mathbf{x}} P(\mathbf{x} \mid \mathcal{G}_1, \theta_1^*) \log P(\mathbf{x} \mid \mathcal{G}_2, \theta)$. Then $P(\mathbf{X} \mid \mathcal{G}_1, \theta_1^*) \not\equiv P(\mathbf{X} \mid \mathcal{G}_2, \theta_2^\dagger)$.
+\end{assumption}
+
+Assumption \ref{as:ident} is the central result of @Ni2022, who proved it for the model without covariates. The following proposition extends it to the covariate-adjusted case.
+
+\begin{proposition}[Identifiability under Covariate Adjustment]
+\label{prop:ident-z}
+If Assumption \ref{as:ident} holds for the oBN model without covariates, it holds for the covariate-adjusted model in Assumption \ref{as:ord}.
+\end{proposition}
+
+*Proof sketch.* For each fixed value $\mathbf{Z} = \mathbf{z}$, the covariate-adjusted model reduces to an oBN with shifted intercepts $\tilde{\alpha}_j(\mathbf{z}) = \alpha_j + \delta_j'\mathbf{z}$. The identifiability argument of @Ni2022 operates on the functional form of the cumulative link --- specifically, the asymmetry between $P(X_j \mid X_k)$ and $P(X_k \mid X_j)$ under ordinal regression --- which depends on the threshold structure and parent effect parameters, not on the intercept value. Shifting the intercept by $\delta_j'\mathbf{z}$ preserves this asymmetry for each $\mathbf{z}$. The KL divergence $\KL(P(\mathbf{X} \mid \mathcal{G}_1, \theta_1^*, \mathbf{z}) \| P(\mathbf{X} \mid \mathcal{G}_2, \theta_2^\dagger(\mathbf{z}), \mathbf{z})) > 0$ for each $\mathbf{z}$, and hence for the marginal (averaged over $\mathbf{Z}$). The full proof is in Appendix A.4. \hfill $\square$
+
+\begin{assumption}[Non-Degeneracy]
+\label{as:nondegen}
+$P_\xi(X_j = \ell \mid X_{\mathrm{pa}(j)} = x_{\mathrm{pa}(j)}, \mathbf{Z} = \mathbf{z}) > 0$ for all $j$, all levels $\ell$, all parent configurations $x_{\mathrm{pa}(j)}$, and all covariate values $\mathbf{z}$ in the support of $\mathbf{Z}$.
+\end{assumption}
+
+
+### Survey Design Assumptions
+
+\begin{assumption}[Positivity]
+\label{as:pos}
+Every unit $i \in U_N$ has a known, strictly positive first-order inclusion probability: $\pi_i = \Pr(i \in S_n) > 0$.
+\end{assumption}
+
+\begin{assumption}[Bounded Weights]
+\label{as:bdd}
+There exist constants $0 < c \leq C < \infty$, independent of $N$, such that $c \leq n\pi_i / (n/N)^{-1} \leq C$ for all $i \in U_N$. Equivalently, $c \leq nw_i / N \leq C$, so that no single unit dominates the pseudo-likelihood.
+\end{assumption}
+
+\begin{assumption}[Design Consistency]
+\label{as:design}
+For any bounded, measurable function $g$ on the sample space of $\mathbf{X}$,
+$$\frac{1}{N}\sum_{i \in S_n} w_i \, g(\mathbf{x}_i) - \frac{1}{N}\sum_{i \in U_N} g(\mathbf{x}_i) \xrightarrow{p} 0$$
+under the design distribution $p_N$, for each fixed realization of $U_N$.
+\end{assumption}
+
+\noindent Assumption \ref{as:design} is satisfied by standard survey designs (stratified random sampling, probability-proportional-to-size sampling, and multi-stage designs with a growing number of primary sampling units) under Assumptions \ref{as:pos}--\ref{as:bdd}; see @Fuller2009 [Ch.\ 1] and @Breidt2017.
+
+
+### Regularity Assumptions
+
+\begin{assumption}[Regularity]
+\label{as:reg}
+For each DAG $\mathcal{G}$: (i) the parameter space $\Theta_{\mathcal{G}}$ is compact; (ii) $\log P(\mathbf{x} \mid \mathcal{G}, \theta, \mathbf{z})$ is twice continuously differentiable in $\theta$ for each $(\mathbf{x}, \mathbf{z})$; (iii) the superpopulation expected log-likelihood $Q_\xi(\theta \mid \mathcal{G}) = \E_\xi[\log P(\mathbf{X} \mid \mathcal{G}, \theta, \mathbf{Z})]$ has a unique maximizer $\theta^*_{\mathcal{G}}$ with nonsingular Hessian; and (iv) the family $\{\theta \mapsto \log P(\mathbf{x} \mid \mathcal{G}, \theta, \mathbf{z}) : (\mathbf{x}, \mathbf{z}) \in \mathrm{supp}(P_\xi)\}$ satisfies a Lipschitz condition in $\theta$ uniformly over $(\mathbf{x}, \mathbf{z})$.
+\end{assumption}
+
+\noindent For the oBN with finitely many ordinal levels, condition (iv) is automatic since the sample space of $\mathbf{X}$ is finite and $F$ is smooth.
+
+
+## Main Results
+
+Define the survey-weighted pseudo-log-likelihood under DAG $\mathcal{G}$ as
+$$\tilde{\ell}(\theta \mid \mathcal{G}) = \sum_{i \in S_n} w_i \log P(\mathbf{x}_i \mid \mathcal{G}, \theta, \mathbf{z}_i),$$
+the pseudo-MLE as $\hat{\theta}^w_{\mathcal{G}} = \arg\max_\theta \tilde{\ell}(\theta \mid \mathcal{G})$, and the survey-weighted pseudo-BIC as
+$$\widetilde{\mathrm{BIC}}(\mathcal{G}) = -2\,\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}} \mid \mathcal{G}) + K_{\mathcal{G}} \cdot \rho_n,$$
+where $K_{\mathcal{G}} = \sum_{j=1}^q \bigl(L_j - 1 + \sum_{k \in \mathrm{pa}(j)}(L_k - 1) + \dim(\delta_j)\bigr)$ is the number of free parameters and $\rho_n$ is a penalty sequence satisfying $\rho_n \to \infty$ and $\rho_n / N \to 0$.
+
+\begin{proposition}[Pseudo-MLE Consistency]
+\label{prop:pmle}
+Under Assumptions \ref{as:ord} and \ref{as:nondegen}--\ref{as:reg}, for each DAG $\mathcal{G}$,
+$$\hat{\theta}^w_{\mathcal{G}} \xrightarrow{p} \theta^*_{\mathcal{G}}$$
+under the joint (superpopulation $\times$ design) probability, where $\theta^*_{\mathcal{G}}$ is the superpopulation KL-optimal parameter under $\mathcal{G}$.
+\end{proposition}
+
+*Proof sketch.* The argument chains two convergences. First, by Assumption \ref{as:design}, the normalized pseudo-log-likelihood $N^{-1}\tilde{\ell}(\theta \mid \mathcal{G})$ converges in probability to the normalized census log-likelihood $N^{-1}\ell_U(\theta \mid \mathcal{G}) = N^{-1}\sum_{i \in U_N} \log P(\mathbf{x}_i \mid \mathcal{G}, \theta, \mathbf{z}_i)$ uniformly in $\theta$, by a Glivenko--Cantelli argument for the function class $\{\theta \mapsto \log P(\mathbf{x} \mid \mathcal{G}, \theta, \mathbf{z})\}$ under bounded weights (Assumption \ref{as:bdd}). Second, by the superpopulation law of large numbers (Assumption \ref{as:nondegen}), the normalized census log-likelihood converges almost surely to $Q_\xi(\theta \mid \mathcal{G})$. The unique maximizer property (Assumption \ref{as:reg}(iii)) and the compactness of $\Theta_{\mathcal{G}}$ then give convergence of the argmax. The full proof is in Appendix A.1. \hfill $\square$
+
+\begin{theorem}[DAG Selection Consistency --- Within Markov Equivalence Classes]
+\label{thm:within}
+Under Assumptions \ref{as:suff}--\ref{as:reg}, let $\mathcal{G}^*$ be the true data-generating DAG and $\mathcal{G}'$ any DAG Markov-equivalent to $\mathcal{G}^*$ with $\mathcal{G}' \neq \mathcal{G}^*$. Then
+$$\Pr\!\left(\widetilde{\mathrm{BIC}}(\mathcal{G}^*) < \widetilde{\mathrm{BIC}}(\mathcal{G}')\right) \to 1.$$
+\end{theorem}
+
+*Proof sketch.* Since $\mathcal{G}^*$ and $\mathcal{G}'$ are Markov-equivalent, they share the same skeleton and hence the same number of parameters: $K_{\mathcal{G}^*} = K_{\mathcal{G}'}$. The penalty terms cancel in the BIC difference, which reduces to
+$$\widetilde{\mathrm{BIC}}(\mathcal{G}^*) - \widetilde{\mathrm{BIC}}(\mathcal{G}') = -2\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}'} \mid \mathcal{G}')\right].$$
+By Proposition \ref{prop:pmle} and the uniform convergence established in its proof,
+$$\begin{aligned}
+\frac{1}{N}\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}'} \mid \mathcal{G}')\right] &\xrightarrow{p} Q_\xi(\theta^*_{\mathcal{G}^*} \mid \mathcal{G}^*) - Q_\xi(\theta^\dagger_{\mathcal{G}'} \mid \mathcal{G}') \\ &= \KL\!\left(P_\xi(\cdot \mid \mathcal{G}^*, \theta^*) \,\|\, P(\cdot \mid \mathcal{G}', \theta^\dagger)\right).
+\end{aligned}$$
+By Assumption \ref{as:ident} (ordinal identifiability, extended to the covariate-adjusted case by Proposition \ref{prop:ident-z}), this KL divergence is strictly positive. Therefore the pseudo-log-likelihood ratio diverges as $N \cdot \KL \cdot (1 + o_p(1)) \to \infty$, and $\widetilde{\mathrm{BIC}}(\mathcal{G}^*) - \widetilde{\mathrm{BIC}}(\mathcal{G}') \to -\infty$ in probability. The full proof is in Appendix A.2. \hfill $\square$
+
+This is the key result: the survey-weighted oBN can correctly orient edges within Markov equivalence classes, a property that neither categorical BNs nor constraint-based methods possess for ordinal data. Importantly, this result holds for *any* penalty sequence $\rho_n$ satisfying the stated conditions, because the penalty cancels entirely --- the discrimination within equivalence classes is driven solely by the pseudo-likelihood, not the penalty.
+
+\begin{remark}
+Theorem \ref{thm:within} relies on the exact cancellation of the penalty terms, $K_{\mathcal{G}^*} = K_{\mathcal{G}'}$. This holds exactly when all ordinal variables share a homogeneous scale (e.g., all $X_j$ have $L$ levels, as is common in standardized survey Likert items). If the variables have heterogeneous numbers of levels, the parameter counts between Markov-equivalent DAGs may differ slightly. In such cases, the penalty difference is at most $O(\rho_n)$, which is asymptotically dominated by the $O(N)$ pseudo-likelihood ratio, ensuring selection consistency is preserved asymptotically.
+\end{remark}
+
+\begin{theorem}[DAG Selection Consistency --- Across Markov Equivalence Classes]
+\label{thm:across}
+Under Assumptions \ref{as:suff}--\ref{as:reg}, let $\mathcal{G}''$ be any DAG not Markov-equivalent to $\mathcal{G}^*$. Then:
+
+(a) If $\mathcal{G}''$ has strictly fewer edges than $\mathcal{G}^*$ (underfitting), $\Pr(\widetilde{\mathrm{BIC}}(\mathcal{G}^*) < \widetilde{\mathrm{BIC}}(\mathcal{G}'')) \to 1$.
+
+(b) If $\mathcal{G}''$ has strictly more edges than $\mathcal{G}^*$ (overfitting) and the penalty satisfies $\rho_n / N \to 0$ and $\rho_n \to \infty$, then $\Pr(\widetilde{\mathrm{BIC}}(\mathcal{G}^*) < \widetilde{\mathrm{BIC}}(\mathcal{G}'')) \to 1$.
+\end{theorem}
+
+*Proof sketch.* For part (a), the underfitting DAG $\mathcal{G}''$ misses at least one true edge. By faithfulness (Assumption \ref{as:faith}), it encodes a conditional independence that does not hold in $P_\xi$, so $Q_\xi(\theta^*_{\mathcal{G}^*} \mid \mathcal{G}^*) > Q_\xi(\theta^\dagger_{\mathcal{G}''} \mid \mathcal{G}'')$. The pseudo-log-likelihood ratio diverges at rate $N$, overwhelming any penalty difference.
+
+For part (b), the overfitting DAG $\mathcal{G}''$ includes at least one spurious edge, so $K_{\mathcal{G}''} > K_{\mathcal{G}^*}$. The pseudo-log-likelihood gain from the spurious parameters is $O_p(1)$ (by a Wilks-type argument for the pseudo-likelihood), while the penalty difference $(K_{\mathcal{G}''} - K_{\mathcal{G}^*})\rho_n \to \infty$. Therefore the BIC favors the sparser $\mathcal{G}^*$. The full proof is in Appendix A.3. \hfill $\square$
+
+
+## The Role of $n_{\mathrm{eff}}$ and Penalty Calibration
+
+Theorems \ref{thm:within} and \ref{thm:across} establish consistency for any penalty $\rho_n$ satisfying the sandwich condition $\rho_n \to \infty$, $\rho_n / N \to 0$. In practice, the choice of $\rho_n$ affects finite-sample model selection. We use $\rho_n = \log(n_{\mathrm{eff}})$ with Kish's effective sample size $n_{\mathrm{eff}} = (\sum w_i)^2 / \sum w_i^2$, following the information-theoretic justification of @Lumley2015.
+
+The motivation is as follows. The pseudo-log-likelihood $\tilde{\ell}(\theta \mid \mathcal{G})$ is of order $N$ (it estimates the census log-likelihood), but the statistical precision of $\hat{\theta}^w_{\mathcal{G}}$ is governed by the design-based variance, which is of order $1/n_{\mathrm{eff}}$. When the BIC is used for model selection, the penalty must be calibrated to the scale of the pseudo-likelihood ratio under the null (no true edge). Under standard asymptotics, this ratio is
+$$\Lambda_w = 2\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}''} \mid \mathcal{G}'') - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*)\right] \xrightarrow{d} \sum_{j=1}^{K_{\mathcal{G}''} - K_{\mathcal{G}^*}} \delta_j \chi^2_{1,j},$$
+where $\delta_j$ are the generalized design effects --- eigenvalues of $\mathcal{I}_\xi^{-1} V_p$, with $\mathcal{I}_\xi$ the superpopulation Fisher information and $V_p$ the design-based variance of the pseudo-score. The mean of $\Lambda_w$ under the null is $\sum_j \delta_j$, which is approximately $(K_{\mathcal{G}''} - K_{\mathcal{G}^*}) \cdot \bar{\delta}$, where $\bar{\delta}$ is the average design effect. Using $\rho_n = \log(n_{\mathrm{eff}})$ with the Kish approximation $\bar{\delta} \approx n / n_{\mathrm{eff}}$ ensures that the penalty grows at the rate appropriate to the effective information content of the sample.
+
+Two observations are important for practice. First, for discrimination within Markov equivalence classes (Theorem \ref{thm:within}), the penalty plays no role, so the choice of $n_{\mathrm{eff}}$ does not affect the oBN's distinctive contribution --- full edge orientation. Second, the Kish $n_{\mathrm{eff}}$ is a global scalar approximation to a matrix-valued, node-specific quantity. When design effects are heterogeneous across node regressions, this approximation may lead to modest over- or under-penalization of specific edges in finite samples. A node-specific correction, replacing $n_{\mathrm{eff}}$ with $\hat{n}_{\mathrm{eff},j}$ estimated from the ratio of the pseudo-score variance to the Hessian for each node's ordinal regression, would provide tighter calibration at the cost of additional computation.
+
+
+# Simulation Studies {#sec-simulations}
+
+\textcolor{blue}{[To be completed. This section will present simulation studies demonstrating: (a) the bias introduced by ignoring survey weights across all three algorithm families; (b) the recovery of the true causal structure by the proposed survey-weighted methods; (c) the performance of the swa-oBN under varying levels of weight variability, sample sizes, and numbers of ordinal levels; and (d) the computational gains from hash-table score caching.]}
+
+
+# Application and Discussion {#sec-application}
+
+\textcolor{blue}{[To be completed. This section will present the CAHPS application of the swa-oBN, including: (a) the data preparation and survey design specification; (b) the estimated causal DAG among social needs variables; (c) bootstrapped edge stability analysis; (d) comparison of weighted and unweighted results; and (e) substantive discussion of the causal structure among Veteran social needs.]}
+
+
+# Conclusion
+
+This paper has introduced a unified framework for causal discovery from complex survey data, addressing a gap that has persisted despite the ubiquity of survey-based research in psychology, public health, and the social sciences. Our primary contribution, the survey-weighted asymptotically identified ordinal Bayesian network (swa-oBN), simultaneously resolves two fundamental problems that have limited the application of causal discovery to survey questionnaire data: the non-identifiability of standard categorical Bayesian networks for ordinal data, and the systematic distributional bias introduced by complex probability sampling designs.
+
+We have established the theoretical foundations of the swa-oBN through a joint superpopulation-and-design asymptotic framework. Proposition \ref{prop:pmle} shows that the survey-weighted pseudo-MLE is consistent for the superpopulation parameters under each candidate DAG. Theorem \ref{thm:within} --- the central result --- demonstrates that the survey-weighted pseudo-BIC consistently selects the true data-generating DAG over any Markov-equivalent alternative, a property that derives from the functional-form asymmetry of ordinal regression and that neither multinomial BNs nor constraint-based methods possess. Theorem \ref{thm:across} completes the consistency picture by ruling out both underfitting and overfitting DAGs. Critically, Proposition \ref{prop:ident-z} extends the identifiability theory of @Ni2022 to the covariate-adjusted setting, ensuring that the inclusion of demographic confounders in the $\mathbf{Z}$ matrix does not compromise the oBN's distinctive ability to orient edges. Together, these results provide the first formal guarantees for causal structure learning under complex survey designs.
+
+Beyond the score-based swa-oBN, we have developed survey-weighted extensions of constraint-based (swa-PC, swa-FCI) and asymmetry-based (swa-LiNGAM) algorithms. While these methods do not achieve the full identifiability of the swa-oBN for ordinal data, they serve complementary roles: swa-PC and swa-FCI accommodate latent confounders and mixed data types, while swa-LiNGAM addresses continuous non-Gaussian settings. The hybrid swa-PC+oBN offers a computationally efficient alternative that leverages the PC algorithm for skeleton discovery while relying on ordinal regression for edge orientation.
+
+In addition to these theoretical and methodological contributions, our implementation in the `OrdCDsvy` R package achieves substantial computational gains through hash-table-based score caching. By storing previously computed node-level pseudo-BIC scores keyed by parent-set signatures and retrieving them in constant time, the package avoids the redundant survey-weighted ordinal regressions that dominate computation in hill-climbing search with multiple random restarts and bootstrap resampling. In our benchmarks, this caching strategy reduces wall-clock time by over an order of magnitude compared to naive implementations, making bootstrapped swa-oBN with hundreds of resamples practical for moderately sized survey datasets --- a critical requirement for the uncertainty quantification that applied researchers need.
+
+\textcolor{blue}{[To be completed upon finalization of simulations and application: a paragraph summarizing the simulation findings and a paragraph summarizing the CAHPS application findings.]}
+
+Several limitations warrant discussion. First, the causal sufficiency assumption (Assumption \ref{as:suff}) is untestable and potentially restrictive in observational survey settings where unmeasured confounders are plausible. While covariate adjustment via $\mathbf{Z}$ mitigates confounding by observed demographics, it cannot address unobserved confounders. The swa-FCI algorithm provides a partial remedy, but at the cost of reduced identifiability. Second, the ordinal regression specification (Assumption \ref{as:ord}) imposes parametric structure on the conditional distributions; misspecification of the link function or violation of proportional odds could weaken the identifiability argument. Post-hoc diagnostics such as the Brant test can flag such violations. Third, the use of Kish's $n_{\mathrm{eff}}$ as a global scalar penalty represents a simplification of the node-specific design effects; node-level effective sample sizes could improve finite-sample calibration. Fourth, the greedy hill-climbing search is not guaranteed to find the global optimum, although multiple random restarts substantially mitigate local optima in practice.
+
+Future directions include extending the framework to longitudinal survey designs with repeated cross-sections or panel waves, developing survey-weighted causal discovery methods for mixed ordinal-continuous data, and investigating the robustness of the swa-oBN to violations of the proportional odds assumption through nonparametric or semiparametric ordinal models. The integration of survey-weighted causal discovery with subsequent survey-weighted causal effect estimation — moving from structure learning to parameter estimation along the discovered graph — represents a natural pipeline for applied research and warrants further development.
+
+
+# References
+
+\newpage
+
+# Appendix A: Proofs of Theoretical Results {#sec-appendix-proofs .unnumbered}
+
+This appendix provides complete proofs of all results stated in Section 4 of the main text. Throughout, we use the notation established there: $\xi$ denotes the superpopulation, $U_N$ the finite population of size $N$, $S_n$ the probability sample of size $n$, $w_i = 1/\pi_i$ the survey weights, and $P_\xi(\mathbf{X} \mid \mathcal{G}, \theta, \mathbf{Z})$ the ordinal BN model under DAG $\mathcal{G}$ with parameters $\theta$ and covariates $\mathbf{Z}$.
+
+We define the following quantities that appear throughout the proofs:
+
+- **Census log-likelihood:** $\ell_U(\theta \mid \mathcal{G}) = \sum_{i \in U_N} \log P(\mathbf{x}_i \mid \mathcal{G}, \theta, \mathbf{z}_i)$.
+- **Pseudo-log-likelihood:** $\tilde{\ell}(\theta \mid \mathcal{G}) = \sum_{i \in S_n} w_i \log P(\mathbf{x}_i \mid \mathcal{G}, \theta, \mathbf{z}_i)$.
+- **Superpopulation expected log-likelihood:** $Q_\xi(\theta \mid \mathcal{G}) = \E_\xi[\log P(\mathbf{X} \mid \mathcal{G}, \theta, \mathbf{Z})]$.
+- **Normalized versions:** $\bar{\ell}_U(\theta \mid \mathcal{G}) = N^{-1}\ell_U(\theta \mid \mathcal{G})$, $\bar{\tilde{\ell}}(\theta \mid \mathcal{G}) = N^{-1}\tilde{\ell}(\theta \mid \mathcal{G})$.
+
+
+## A.1 Proof of Proposition 2 (Pseudo-MLE Consistency) {.unnumbered}
+
+We prove that $\hat{\theta}^w_{\mathcal{G}} \xrightarrow{p} \theta^*_{\mathcal{G}}$ under the joint probability. The argument proceeds in three steps.
+
+**Step 1: Design consistency of the normalized pseudo-log-likelihood.**
+
+Fix $\theta \in \Theta_{\mathcal{G}}$ and define $g_\theta(\mathbf{x}, \mathbf{z}) = \log P(\mathbf{x} \mid \mathcal{G}, \theta, \mathbf{z})$. Since $\mathbf{X}$ takes values in the finite set $\prod_{j=1}^q \{1, \ldots, L_j\}$ and $F$ is bounded, $g_\theta$ is bounded for each fixed $\theta$. By Assumption 9 (Design Consistency), for each fixed realization of $U_N$,
+$$\bar{\tilde{\ell}}(\theta \mid \mathcal{G}) - \bar{\ell}_U(\theta \mid \mathcal{G}) = \frac{1}{N}\sum_{i \in S_n} w_i g_\theta(\mathbf{x}_i, \mathbf{z}_i) - \frac{1}{N}\sum_{i \in U_N} g_\theta(\mathbf{x}_i, \mathbf{z}_i) \xrightarrow{p_N} 0,$$
+where $p_N$ denotes convergence under the design distribution. This is a direct application of the Horvitz--Thompson consistency theorem for bounded variables under Assumptions 7--9.
+
+**Step 2: Superpopulation law of large numbers for the census log-likelihood.**
+
+By Assumption 6 (Non-Degeneracy) and the i.i.d.\ superpopulation structure, $\{(\mathbf{x}_i, \mathbf{z}_i)\}_{i \in U_N}$ are i.i.d.\ draws from $\xi$. Since $g_\theta$ is bounded, the strong law of large numbers gives
+$$\bar{\ell}_U(\theta \mid \mathcal{G}) = \frac{1}{N}\sum_{i=1}^N g_\theta(\mathbf{x}_i, \mathbf{z}_i) \xrightarrow{a.s.} \E_\xi[g_\theta(\mathbf{X}, \mathbf{Z})] = Q_\xi(\theta \mid \mathcal{G}).$$
+
+**Step 3: Uniform convergence and argmax convergence.**
+
+Combining Steps 1 and 2, for each fixed $\theta$:
+$$\bar{\tilde{\ell}}(\theta \mid \mathcal{G}) \xrightarrow{p} Q_\xi(\theta \mid \mathcal{G}).$$
+We upgrade this to uniform convergence over $\Theta_{\mathcal{G}}$. By Assumption 10(iv), for any $\theta, \theta' \in \Theta_{\mathcal{G}}$,
+$$|g_\theta(\mathbf{x}, \mathbf{z}) - g_{\theta'}(\mathbf{x}, \mathbf{z})| \leq M \|\theta - \theta'\|$$
+for some constant $M > 0$ (using that $\mathbf{X}$ has finite support and $F$ is smooth). This Lipschitz condition, combined with the compactness of $\Theta_{\mathcal{G}}$ (Assumption 10(i)), gives equicontinuity of the process $\theta \mapsto \bar{\tilde{\ell}}(\theta \mid \mathcal{G})$. Pointwise convergence plus equicontinuity on a compact set gives uniform convergence (see, e.g., van der Vaart, 1998, Theorem 2.4):
+$$\sup_{\theta \in \Theta_{\mathcal{G}}} \left| \bar{\tilde{\ell}}(\theta \mid \mathcal{G}) - Q_\xi(\theta \mid \mathcal{G}) \right| \xrightarrow{p} 0. \tag{A.1}$$
+Now, $\hat{\theta}^w_{\mathcal{G}} = \arg\max_\theta \bar{\tilde{\ell}}(\theta \mid \mathcal{G})$ (the normalization by $N$ does not affect the argmax). By Assumption 10(iii), $Q_\xi(\theta \mid \mathcal{G})$ has a unique maximizer $\theta^*_{\mathcal{G}}$ with nonsingular Hessian. By (A.1) and the argmax continuous mapping theorem (van der Vaart, 1998, Theorem 5.7),
+$$\hat{\theta}^w_{\mathcal{G}} \xrightarrow{p} \theta^*_{\mathcal{G}}. \tag{A.2}$$
+As a corollary, by the continuous mapping theorem and (A.1):
+$$\bar{\tilde{\ell}}(\hat{\theta}^w_{\mathcal{G}} \mid \mathcal{G}) \xrightarrow{p} Q_\xi(\theta^*_{\mathcal{G}} \mid \mathcal{G}). \tag{A.3}$$
+\hfill $\blacksquare$
+
+**Remark.** The two-step structure of the proof --- design consistency followed by superpopulation convergence --- is characteristic of the joint asymptotic framework for survey data. The design consistency step requires only bounded weights and the HT consistency property; it does not require any distributional assumptions on $\mathbf{X}$. The superpopulation step is a standard i.i.d.\ law of large numbers. The key insight is that these two steps compose: the pseudo-log-likelihood first approximates the census log-likelihood (design step), which in turn approximates the superpopulation expected log-likelihood (population step).
+
+
+## A.2 Proof of Theorem 1 (Within Markov Equivalence Classes) {.unnumbered}
+
+Let $\mathcal{G}^*$ be the true DAG with parameters $\theta^*$, and let $\mathcal{G}'$ be Markov-equivalent with $\mathcal{G}' \neq \mathcal{G}^*$. Let $\theta^\dagger$ denote the pseudo-true parameter of $\mathcal{G}'$, i.e.,
+$$\theta^\dagger = \arg\max_\theta \, Q_\xi(\theta \mid \mathcal{G}') = \arg\max_\theta \, \E_\xi\!\left[\log P(\mathbf{X} \mid \mathcal{G}', \theta, \mathbf{Z})\right].$$
+
+**Step 1: Penalty cancellation.**
+
+Since $\mathcal{G}^*$ and $\mathcal{G}'$ are Markov-equivalent, they have the same skeleton (Verma \& Pearl, 1990). In the oBN parameterization, the number of free parameters depends only on the skeleton structure: $K_{\mathcal{G}} = \sum_{j=1}^q (L_j - 1 + \sum_{k \in \mathrm{pa}(j)}(L_k - 1) + \dim(\delta_j))$. While the parent sets $\mathrm{pa}(j)$ differ between Markov-equivalent DAGs, the total number of parent--child pairs (i.e., the number of directed edges) is the same because both DAGs have the same skeleton. Moreover, for each edge $j - k$ in the skeleton, the parameter count contributed by that edge is $(L_k - 1)$ if $k \to j$ or $(L_j - 1)$ if $j \to k$. For Markov-equivalent DAGs with the same skeleton, consider any edge that is oriented differently. If $\mathcal{G}^*$ has $k \to j$ and $\mathcal{G}'$ has $j \to k$, then $\mathcal{G}^*$ contributes $(L_k - 1)$ parameters to node $j$'s regression while $\mathcal{G}'$ contributes $(L_j - 1)$ to node $k$'s regression. In the sum $K_{\mathcal{G}} = \sum_j \sum_{k \in \mathrm{pa}(j)} (L_k - 1) + \text{const}$, each edge $j-k$ contributes either $(L_k-1)$ or $(L_j-1)$ depending on orientation. If $L_j = L_k$ for all $j, k$ (as in homogeneous ordinal scales, e.g., all variables having $L$ levels), then $K_{\mathcal{G}^*} = K_{\mathcal{G}'}$ exactly.
+
+When the ordinal variables have heterogeneous numbers of levels, the parameter counts may differ between Markov-equivalent DAGs. However, we note that for the CAHPS application (all need variables have $L_j = 3$) and for typical survey questionnaires using a common Likert scale, the homogeneous case applies. We therefore state the theorem under the condition $K_{\mathcal{G}^*} = K_{\mathcal{G}'}$ and note that in the heterogeneous case, the penalty difference is at most $O(\rho_n)$, which is negligible relative to the $O(N)$ pseudo-likelihood ratio (see Step 3).
+Under $K_{\mathcal{G}^*} = K_{\mathcal{G}'}$:
+$$\widetilde{\mathrm{BIC}}(\mathcal{G}^*) - \widetilde{\mathrm{BIC}}(\mathcal{G}') = -2\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}'} \mid \mathcal{G}')\right]. \tag{A.4}$$
+
+
+**Step 2: Convergence of the pseudo-log-likelihood ratio.**
+
+By equation (A.3) from the proof of Proposition 2, applied to both $\mathcal{G}^*$ and $\mathcal{G}'$:
+\begin{align}
+\frac{1}{N}\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) &\xrightarrow{p} Q_\xi(\theta^* \mid \mathcal{G}^*), \tag{A.5}\\
+\frac{1}{N}\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}'} \mid \mathcal{G}') &\xrightarrow{p} Q_\xi(\theta^\dagger \mid \mathcal{G}'). \tag{A.6}
+\end{align}
+
+Taking the difference:
+$$\frac{1}{N}\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}'} \mid \mathcal{G}')\right] \xrightarrow{p} Q_\xi(\theta^* \mid \mathcal{G}^*) - Q_\xi(\theta^\dagger \mid \mathcal{G}'). \tag{A.7}$$
+
+
+**Step 3: Strict positivity of the KL divergence.**
+
+The limit in (A.7) can be written as
+\begin{align}
+Q_\xi(\theta^* \mid \mathcal{G}^*) - Q_\xi(\theta^\dagger \mid \mathcal{G}') &= \E_\xi\!\left[\log P(\mathbf{X} \mid \mathcal{G}^*, \theta^*, \mathbf{Z})\right] - \E_\xi\!\left[\log P(\mathbf{X} \mid \mathcal{G}', \theta^\dagger, \mathbf{Z})\right] \nonumber \\
+&= \E_\xi\!\left[\log \frac{P(\mathbf{X} \mid \mathcal{G}^*, \theta^*, \mathbf{Z})}{P(\mathbf{X} \mid \mathcal{G}', \theta^\dagger, \mathbf{Z})}\right] \nonumber \\
+&= \E_{\mathbf{Z}}\!\left[\KL\!\left(P_\xi(\mathbf{X} \mid \mathcal{G}^*, \theta^*, \mathbf{Z}) \,\big\|\, P(\mathbf{X} \mid \mathcal{G}', \theta^\dagger, \mathbf{Z})\right)\right]. \tag{A.8}
+\end{align}
+
+By Assumption 5 (Ordinal Identifiability), for each fixed $\mathbf{Z} = \mathbf{z}$, the oBN model under $\mathcal{G}^*$ with parameters $(\theta^*, \delta^* \cdot \mathbf{z})$ is not distributionally equivalent to the oBN model under $\mathcal{G}'$ with any parameter value. Proposition 1 (Identifiability under Covariate Adjustment) establishes that this extends to the covariate-adjusted model: the covariates shift the intercept but do not alter the functional-form asymmetry exploited by the identifiability result of Ni and Mallick (2022). Therefore,
+
+$$\KL\!\left(P_\xi(\mathbf{X} \mid \mathcal{G}^*, \theta^*, \mathbf{z}) \,\big\|\, P(\mathbf{X} \mid \mathcal{G}', \theta^\dagger(\mathbf{z}), \mathbf{z})\right) > 0 \tag{A.9}$$
+
+for all $\mathbf{z}$ in the support of $\mathbf{Z}$. Since the KL divergence is nonnegative and continuous in $\mathbf{z}$ (by smoothness of $F$), and is strictly positive on the entire support, the expectation over $\mathbf{Z}$ in (A.8) is strictly positive:
+
+$$Q_\xi(\theta^* \mid \mathcal{G}^*) - Q_\xi(\theta^\dagger \mid \mathcal{G}') = \Delta > 0. \tag{A.10}$$
+
+
+**Step 4: Conclusion.**
+
+Combining (A.4), (A.7), and (A.10):
+
+$$\widetilde{\mathrm{BIC}}(\mathcal{G}^*) - \widetilde{\mathrm{BIC}}(\mathcal{G}') = -2N\!\left[\Delta + o_p(1)\right] \to -\infty$$
+
+in probability. Therefore $\Pr(\widetilde{\mathrm{BIC}}(\mathcal{G}^*) < \widetilde{\mathrm{BIC}}(\mathcal{G}')) \to 1$.
+
+\hfill $\blacksquare$
+
+**Remark.** The rate of discrimination is $O(N)$, which is the population size, not the sample size $n$. This is because the pseudo-log-likelihood estimates the census log-likelihood, which accumulates information at rate $N$. The statistical noise in the pseudo-log-likelihood ratio is $O_p(N / \sqrt{n_{\mathrm{eff}}})$ (from the design-based variance of the HT estimator), so the signal-to-noise ratio for within-MEC discrimination grows as $\sqrt{n_{\mathrm{eff}}}$. This confirms that the oBN's ability to orient edges improves with effective sample size, not raw sample size.
+
+
+## A.3 Proof of Theorem 2 (Across Markov Equivalence Classes) {.unnumbered}
+
+### Part (a): Underfitting {.unnumbered}
+
+Let $\mathcal{G}''$ be a DAG with strictly fewer edges than $\mathcal{G}^*$. Then $\mathcal{G}''$ is not in the Markov equivalence class of $\mathcal{G}^*$ and, by Faithfulness (Assumption 3), encodes at least one conditional independence that does not hold in $P_\xi$.
+
+By the same argument as in Theorem 1, Steps 2--3:
+
+$$\frac{1}{N}\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}''} \mid \mathcal{G}'')\right] \xrightarrow{p} \KL\!\left(P_\xi(\cdot \mid \mathcal{G}^*) \,\|\, P(\cdot \mid \mathcal{G}'', \theta''^\dagger)\right) = \Delta'' > 0.$$
+
+The strict positivity follows because $\mathcal{G}''$ imposes conditional independence constraints not present in $P_\xi$, so $P_\xi$ cannot be expressed as a member of the oBN model under $\mathcal{G}''$ (this is a standard property of KL divergence: the projection of $P_\xi$ onto the constrained model family has strictly positive KL from $P_\xi$ when the constraint is violated).
+
+The penalty difference satisfies $|K_{\mathcal{G}^*} - K_{\mathcal{G}''}| \cdot \rho_n = O(\rho_n) = o(N)$ by the assumption $\rho_n / N \to 0$. Therefore:
+
+\begin{align}
+\widetilde{\mathrm{BIC}}(\mathcal{G}^*) - \widetilde{\mathrm{BIC}}(\mathcal{G}'') &= -2N\!\left[\Delta'' + o_p(1)\right] + (K_{\mathcal{G}^*} - K_{\mathcal{G}''})\rho_n \nonumber \\
+&= -2N\Delta''(1 + o_p(1)) + o(N) \nonumber \\
+&\to -\infty. \tag{A.11}
+\end{align}
+
+\hfill $\blacksquare$
+
+
+### Part (b): Overfitting {.unnumbered}
+
+Let $\mathcal{G}''$ be a DAG with strictly more edges than $\mathcal{G}^*$, including at least one spurious edge not present in $\mathcal{G}^*$. Then $K_{\mathcal{G}''} > K_{\mathcal{G}^*}$.
+
+**Step 1: The pseudo-log-likelihood gain from spurious parameters is bounded.**
+
+We argue that the overfitting pseudo-log-likelihood ratio is $O_p(1)$, not $O_p(N)$. Consider the decomposition of the pseudo-BIC by nodes. For any DAG $\mathcal{G}$,
+
+$$\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}} \mid \mathcal{G}) = \sum_{j=1}^q \tilde{\ell}_j(\hat{\theta}^w_j \mid \mathrm{pa}_{\mathcal{G}}(j)),$$
+
+where $\tilde{\ell}_j(\theta_j \mid \mathrm{pa}_{\mathcal{G}}(j)) = \sum_{i \in S_n} w_i \log P(x_{ij} \mid x_{i,\mathrm{pa}(j)}, \mathbf{z}_i, \theta_j)$ is the node-$j$ pseudo-log-likelihood. The spurious edge in $\mathcal{G}''$ adds parent $k$ to some node $j$ where $k \notin \mathrm{pa}_{\mathcal{G}^*}(j)$. For node $j$, the pseudo-log-likelihood gain is:
+
+$$\Lambda_{w,j} = 2\!\left[\tilde{\ell}_j(\hat{\theta}^w_j \mid \mathrm{pa}_{\mathcal{G}''}(j)) - \tilde{\ell}_j(\hat{\theta}^w_j \mid \mathrm{pa}_{\mathcal{G}^*}(j))\right]. \tag{A.12}$$
+
+Under the null (the true parent set of $j$ does not include $k$), the additional parameters $\beta_{jk,2}, \ldots, \beta_{jk,L_k}$ are zero in the population. We now characterize the distribution of $\Lambda_{w,j}$.
+
+Define the pseudo-score for the additional parameters: $\tilde{U}_j = \sum_{i \in S_n} w_i \nabla_{\beta_{jk}} \log P(x_{ij} \mid x_{i,\mathrm{pa}^*(j)}, \mathbf{z}_i, \theta^*_j)$. Under the null, $\E[\tilde{U}_j] = 0$ (the census score has mean zero at the true parameter, and the HT estimator is unbiased for the census score). The variance of $\tilde{U}_j$ is the design-based variance. Let $\pi_{ii'} = \Pr(i \in S_n \text{ and } i' \in S_n)$ denote the second-order (pairwise) inclusion probability for units $i$ and $i'$, with $\pi_{ii} = \pi_i$. Then
+
+\begin{equation}
+\mathrm{Var}_p(\tilde{U}_j) = \sum_{i \in U_N} \sum_{i' \in U_N} \frac{\pi_{ii'} - \pi_i \pi_{i'}}{\pi_i \pi_{i'}} s_i s_{i'}, \tag{A.13}
+\end{equation}
+where $s_i = \nabla_{\beta_{jk}} \log P(x_{ij} \mid x_{i,\mathrm{pa}^*(j)}, \mathbf{z}_i, \theta^*_j)$ is the individual score contribution. We emphasize that (A.13) is used here only to establish the \textit{order} of the variance --- specifically, $\mathrm{Var}_p(\tilde{U}_j) = O(N^2/n)$ under Assumptions 7--9, which is the standard rate for Horvitz--Thompson estimator variances. Computing or estimating $\pi_{ii'}$ is not required by our method; knowledge of $w_i = 1/\pi_i$ alone suffices for all algorithmic steps.
+
+By a quadratic approximation (pseudo-likelihood analog of the Rao score test):
+
+$$\Lambda_{w,j} \approx \tilde{U}_j^\top \!\left[\sum_{i \in S_n} w_i \mathcal{I}_j(\theta^*_j)\right]^{-1}\!\!\tilde{U}_j, \tag{A.14}$$
+
+where $\mathcal{I}_j$ is the per-observation Fisher information for the additional parameters. The bracketed term is $O(N)$ (it estimates the census Fisher information), and $\tilde{U}_j$ has variance $O(N^2/n)$. Therefore:
+
+$$\Lambda_{w,j} = O_p\!\left(\frac{N^2/n}{N}\right) = O_p(N/n). \tag{A.15}$$
+
+Under the weight normalization used in the implementation (weights normalized to sum to $n$), the pseudo-log-likelihood is rescaled by $n/N$, giving $\Lambda_{w,j} = O_p(1)$ on the implementation scale. On the unscaled (HT) pseudo-likelihood used in the theorem, $\Lambda_{w,j} = O_p(N/n)$.
+
+**Step 2: The penalty dominates.**
+
+The penalty difference satisfies $(K_{\mathcal{G}''} - K_{\mathcal{G}^*}) \cdot \rho_n \geq \rho_n$. We require the penalty $\rho_n$ to asymptotically dominate the pseudo-likelihood gain $\Lambda_{w,j} = O_p(N/n)$. On the implementation scale (with weights scaled to sum to $n$), this is equivalent to requiring $\log(n_{\mathrm{eff}}) / \bar{\delta} \to \infty$.
+
+We establish this limit by invoking Assumption 8 (Bounded Weights), which guarantees the existence of constants $0 < c \leq C < \infty$ such that $c \leq n w_i / N \leq C$. Using Kish's formula, the effective sample size is bounded below by:
+$$n_{\mathrm{eff}} = \frac{(\sum_{i \in S_n} w_i)^2}{\sum_{i \in S_n} w_i^2} \geq \frac{\left(n \cdot c \frac{N}{n}\right)^2}{n \left(C \frac{N}{n}\right)^2} = \left(\frac{c}{C}\right)^2 n.$$
+Because $n_{\mathrm{eff}} \leq n$ by definition, we have $n_{\mathrm{eff}} = \Theta(n)$. The average design effect $\bar{\delta} = n / n_{\mathrm{eff}}$ is therefore bounded above by a constant $(C/c)^2 = O(1)$. 
+
+Since the sampling fraction $n/N \to f \in [0,1)$ implies $n \to \infty$ as $N \to \infty$, we have $n_{\mathrm{eff}} \to \infty$, which implies $\log(n_{\mathrm{eff}}) \to \infty$. Because $\bar{\delta}$ is strictly bounded by $O(1)$, it follows conclusively that:
+$$\frac{\log(n_{\mathrm{eff}})}{\bar{\delta}} \to \infty.$$
+Thus, the penalty term strictly dominates the $O_p(1)$ pseudo-likelihood gain in (A.17), and $\widetilde{\mathrm{BIC}}_{\mathrm{impl}}(\mathcal{G}'') > \widetilde{\mathrm{BIC}}_{\mathrm{impl}}(\mathcal{G}^*)$ with probability approaching 1.
+
+\hfill $\blacksquare$
+
+
+## A.4 Proof of Proposition 1 (Identifiability under Covariate Adjustment) {.unnumbered}
+
+We prove that the ordinal identifiability result of Ni and Mallick (2022) extends to the covariate-adjusted oBN model.
+
+**Setup.** Consider the bivariate case (the multivariate case follows by the same local argument applied to each edge). Let $X_1, X_2$ be ordinal with $L_1, L_2 \geq 3$ levels, and let $\mathbf{Z}$ be a covariate vector. Under the model $X_1 \to X_2$:
+
+\begin{align}
+P(X_1 \leq \ell) &= F(\gamma_{1\ell} - \delta_1'\mathbf{Z} - \alpha_1), \nonumber \\
+P(X_2 \leq \ell \mid X_1) &= F(\gamma_{2\ell} - \beta_{21}X_1 - \delta_2'\mathbf{Z} - \alpha_2). \tag{A.18}
+\end{align}
+
+Under the reverse model $X_2 \to X_1$:
+
+\begin{align}
+P(X_2 \leq \ell) &= F(\tilde{\gamma}_{2\ell} - \tilde{\delta}_2'\mathbf{Z} - \tilde{\alpha}_2), \nonumber \\
+P(X_1 \leq \ell \mid X_2) &= F(\tilde{\gamma}_{1\ell} - \tilde{\beta}_{12}X_2 - \tilde{\delta}_1'\mathbf{Z} - \tilde{\alpha}_1). \tag{A.19}
+\end{align}
+
+**The argument.** Fix $\mathbf{Z} = \mathbf{z}$. The conditional model (A.18) becomes
+
+\begin{align}
+P(X_1 \leq \ell \mid \mathbf{Z} = \mathbf{z}) &= F(\gamma_{1\ell} - \alpha_1(\mathbf{z})), \nonumber \\
+P(X_2 \leq \ell \mid X_1, \mathbf{Z} = \mathbf{z}) &= F(\gamma_{2\ell} - \beta_{21}X_1 - \alpha_2(\mathbf{z})), \tag{A.20}
+\end{align}
+
+where $\alpha_j(\mathbf{z}) = \alpha_j + \delta_j'\mathbf{z}$ absorbs the covariate effect into the intercept. This is exactly an oBN model for $(X_1, X_2)$ with intercepts $\alpha_j(\mathbf{z})$. The reverse model (A.19) similarly reduces to an oBN with intercepts $\tilde{\alpha}_j(\mathbf{z})$.
+
+The identifiability proof of Ni and Mallick (2022, Theorem 1) proceeds by showing that the joint distribution $P(X_1 = a, X_2 = b)$ under the forward ordinal regression model (A.20) cannot be expressed as a joint distribution arising from the reverse ordinal regression model (A.19) for generic parameter values. The proof constructs a system of polynomial equations relating the forward and reverse parameters and shows this system is generically inconsistent. Crucially, the intercepts $\alpha_j(\mathbf{z})$ enter the proof only through the marginal probabilities $P(X_j = \ell \mid \mathbf{z})$, and the inconsistency of the polynomial system holds for *every* value of these marginal probabilities (as long as they are in the interior of the simplex, which is guaranteed by Assumption 6). Since $\alpha_j(\mathbf{z})$ simply shifts the marginal probabilities to a different interior point, the inconsistency is preserved for each $\mathbf{z}$.
+
+Formally, let $\Theta_{\mathrm{forward}}(\mathbf{z}) \subset \mathbb{R}^{d_1}$ and $\Theta_{\mathrm{reverse}}(\mathbf{z}) \subset \mathbb{R}^{d_2}$ denote the parameter spaces of the forward and reverse oBN models conditional on $\mathbf{Z} = \mathbf{z}$. The image of $\Theta_{\mathrm{forward}}(\mathbf{z})$ under the map $\theta \mapsto P(\mathbf{X} \mid \theta, \mathbf{z})$ and the image of $\Theta_{\mathrm{reverse}}(\mathbf{z})$ under the analogous map are semi-algebraic subsets of the probability simplex $\Delta^{L_1 L_2 - 1}$ (because $F$ is the CDF of a known distribution and the parameterization is polynomial in the CDF values). By Ni and Mallick (2022, Theorem 1), these two images intersect on a set of Lebesgue measure zero in $\Delta^{L_1 L_2 - 1}$ when $L_1, L_2 \geq 3$. Varying $\mathbf{z}$ moves the true distribution within the forward image but does not move it onto the reverse image (except on a measure-zero set of $\mathbf{z}$ values, which does not affect the expectation over $\mathbf{Z}$).
+
+Therefore, for almost every $\mathbf{z}$:
+
+$$\KL\!\left(P(\mathbf{X} \mid \mathcal{G}^*, \theta^*, \mathbf{z}) \,\|\, P(\mathbf{X} \mid \mathcal{G}', \theta^\dagger(\mathbf{z}), \mathbf{z})\right) > 0,$$
+
+and hence the expectation over $\mathbf{Z}$ is strictly positive.
+
+\hfill $\blacksquare$
+
+
+## A.5 Discussion of Assumptions {.unnumbered}
+
+We briefly discuss the roles and testability of the key assumptions.
+
+**Causal Sufficiency (Assumption 1)** is the strongest and least testable assumption. In the CAHPS application, unmeasured confounders such as neighborhood-level economic conditions may simultaneously affect multiple social needs. Violation of causal sufficiency can introduce spurious edges in the learned DAG. We note that the covariate adjustment for demographics ($\mathbf{Z}$) partially mitigates this concern by removing confounding due to observed characteristics, but cannot address unobserved confounders. When causal sufficiency is suspect, the swa-FCI algorithm (Section 3.2 of the main text) provides a complementary analysis that accommodates latent confounders, at the cost of reduced identifiability.
+
+**Faithfulness (Assumption 3)** is generic in the sense that the set of parameter values violating faithfulness has Lebesgue measure zero in the parameter space (Meek, 1995). However, near-violations of faithfulness (near-exact cancellation of effects) can reduce the power of conditional independence tests and lead to incorrect edge deletions in finite samples.
+
+**Ordinal Regression Specification (Assumption 4)** is partially testable via goodness-of-fit diagnostics. The Brant test for proportional odds can be applied to each node's regression post hoc. Violation of this assumption weakens the identifiability argument (Assumption 5), which relies specifically on the functional-form asymmetry of the cumulative link model.
+
+**Bounded Weights (Assumption 8)** is verifiable from the data. In the CAHPS application, we report the range and distribution of survey weights and the ratio $n/n_{\mathrm{eff}}$ as a summary of weight variability. Extreme weights can be trimmed to satisfy this assumption approximately, at the cost of introducing a small bias.
+
+**Design Consistency (Assumption 9)** is a property of the sampling design, not of the data. It is satisfied by all standard probability sampling designs used in federal surveys, including the stratified design of the VA CAHPS survey. Note that the results above require only first-order inclusion probabilities $\pi_i$ (equivalently, the survey weights $w_i = 1/\pi_i$), not the pairwise inclusion probabilities $\pi_{ij}$. The latter would be needed for design-based variance estimation of individual parameters (e.g., sandwich standard errors for $\hat{\beta}_{jk}$), but are not required for pseudo-likelihood computation, BIC evaluation, or DAG selection consistency.

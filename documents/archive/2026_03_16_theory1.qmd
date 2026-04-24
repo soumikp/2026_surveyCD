@@ -1,0 +1,201 @@
+---
+title: "Causal Discovery from Complex Survey Data"
+subtitle: "Theory (main)"
+csl: referenceStyle.csl
+format:
+  pdf:
+    link-citations: true
+    colorlinks: true
+    citecolor: blue
+    pdf-engine: xelatex
+    number-sections: true
+    documentclass: article
+    mainfont: "Arial"
+    fontsize: 11pt
+    geometry:
+      - margin=1in
+    include-in-header:
+      text: |
+        \usepackage{amsmath, amssymb, amsthm, mathtools}
+        \usepackage{booktabs}
+        \usepackage{setspace}
+        \usepackage{xcolor}
+        \onehalfspacing
+        \newtheorem{theorem}{Theorem}
+        \newtheorem{proposition}{Proposition}
+        \newtheorem{definition}{Definition}
+        \newtheorem{assumption}{Assumption}
+        \newtheorem{remark}{Remark}
+        \DeclareMathOperator{\KL}{KL}
+        \DeclareMathOperator{\tr}{tr}
+        \DeclareMathOperator{\E}{\mathbb{E}}
+bibliography: references.bib
+filters:
+  - todo.lua
+---
+
+
+# Theoretical Properties {#sec-theory}
+
+This section establishes the large-sample properties of the swa-oBN. We show that under standard survey design conditions and the ordinal regression specification of @Ni2022, the survey-weighted pseudo-BIC consistently selects the true data-generating DAG --- including full edge orientation within Markov equivalence classes. All proofs are given in Appendix A.
+
+## Asymptotic Framework
+
+The analysis requires a joint asymptotic framework that accounts for two sources of randomness: the superpopulation generating the finite population, and the sampling design selecting units from it.
+
+Let $\xi$ denote a superpopulation model with true causal DAG $\mathcal{G}^*$ and parameters $\theta^*$. For each population size $N$, a finite population $U_N = \{1, \ldots, N\}$ is generated as $N$ independent draws from $\xi$. From $U_N$, a probability sample $S_n$ of size $n = n(N)$ is drawn according to a sampling design $p_N(S)$ with known first-order inclusion probabilities $\pi_i = \Pr(i \in S_n)$ and survey weights $w_i = 1/\pi_i$. We require $N \to \infty$ and $n \to \infty$ with sampling fraction $n/N \to f \in [0, 1)$. All convergence statements are under the joint (superpopulation $\times$ design) probability.
+
+
+## Assumptions
+
+We organize the assumptions into four groups: causal, parametric, survey design, and regularity.
+
+### Causal Assumptions
+
+\begin{assumption}[Causal Sufficiency]
+\label{as:suff}
+All common causes of any pair $(X_j, X_k)$ in $\mathbf{X} = (X_1, \ldots, X_q)$ are included in the measured variables $\mathbf{X} \cup \mathbf{Z}$.
+\end{assumption}
+
+\begin{assumption}[Causal Markov Property]
+\label{as:markov}
+The superpopulation distribution $P_\xi(\mathbf{X})$ factorizes with respect to the true causal DAG $\mathcal{G}^*$:
+$$P_\xi(\mathbf{X}) = \prod_{j=1}^{q} P_\xi(X_j \mid X_{\mathrm{pa}(j)}).$$
+\end{assumption}
+
+\begin{assumption}[Faithfulness]
+\label{as:faith}
+Every conditional independence in $P_\xi$ is entailed by the Markov property of $\mathcal{G}^*$. That is, $X_A \perp\!\!\!\perp X_B \mid X_C$ in $P_\xi$ if and only if $A$ and $B$ are $d$-separated by $C$ in $\mathcal{G}^*$.
+\end{assumption}
+
+
+### Parametric Assumptions
+
+Let $X_j \in \{1, \ldots, L_j\}$ with $L_j \geq 3$ for each $j = 1, \ldots, q$.
+
+\begin{assumption}[Ordinal Regression Specification]
+\label{as:ord}
+Each conditional distribution under the true DAG $\mathcal{G}^*$ follows a cumulative link model:
+$$P_\xi(X_j \leq \ell \mid X_{\mathrm{pa}(j)}, \mathbf{Z}) = F\!\left(\gamma_{j\ell} - \sum_{k \in \mathrm{pa}(j)} \beta_{jk} X_k - \delta_j' \mathbf{Z} - \alpha_j\right), \quad \ell = 1, \ldots, L_j,$$
+where $F$ is a known, strictly increasing link function (e.g., probit), $\gamma_{j1} < \cdots < \gamma_{j,L_j} = \infty$ are threshold parameters with $\gamma_{j1} = 0$, $\beta_{jk}$ are parent effect parameters with $\beta_{jk,1} = 0$, $\delta_j$ are covariate adjustment parameters, and $\alpha_j$ is an intercept. The covariate vector $\mathbf{Z}$ is not a node in the DAG and enters every node's conditional identically across candidate DAGs.
+\end{assumption}
+
+\begin{remark}
+We restrict the state space to $L_j \ge 3$ because the unique identifiability of the ordinal Bayesian network relies on the asymmetry of the cumulative link function across multiple thresholds. If binary nodes ($L_j = 2$) are present, the conditional model collapses to a standard binary regression, and causal directionality between two binary nodes is only identifiable up to the Markov equivalence class unless additional structural assumptions are made.
+\end{remark}
+
+\begin{assumption}[Ordinal Identifiability]
+\label{as:ident}
+Let $\mathcal{G}_1$ and $\mathcal{G}_2$ be any two Markov-equivalent DAGs, and let $\theta_1^*$ denote the true parameter under $\mathcal{G}_1 = \mathcal{G}^*$. Define the pseudo-true parameter under $\mathcal{G}_2$ as $\theta_2^\dagger = \arg\max_\theta \sum_{\mathbf{x}} P(\mathbf{x} \mid \mathcal{G}_1, \theta_1^*) \log P(\mathbf{x} \mid \mathcal{G}_2, \theta)$. Then $P(\mathbf{X} \mid \mathcal{G}_1, \theta_1^*) \not\equiv P(\mathbf{X} \mid \mathcal{G}_2, \theta_2^\dagger)$.
+\end{assumption}
+
+Assumption \ref{as:ident} is the central result of @Ni2022, who proved it for the model without covariates. The following proposition extends it to the covariate-adjusted case.
+
+\begin{proposition}[Identifiability under Covariate Adjustment]
+\label{prop:ident-z}
+If Assumption \ref{as:ident} holds for the oBN model without covariates, it holds for the covariate-adjusted model in Assumption \ref{as:ord}.
+\end{proposition}
+
+*Proof sketch.* For each fixed value $\mathbf{Z} = \mathbf{z}$, the covariate-adjusted model reduces to an oBN with shifted intercepts $\tilde{\alpha}_j(\mathbf{z}) = \alpha_j + \delta_j'\mathbf{z}$. The identifiability argument of @Ni2022 operates on the functional form of the cumulative link --- specifically, the asymmetry between $P(X_j \mid X_k)$ and $P(X_k \mid X_j)$ under ordinal regression --- which depends on the threshold structure and parent effect parameters, not on the intercept value. Shifting the intercept by $\delta_j'\mathbf{z}$ preserves this asymmetry for each $\mathbf{z}$. The KL divergence $\KL(P(\mathbf{X} \mid \mathcal{G}_1, \theta_1^*, \mathbf{z}) \| P(\mathbf{X} \mid \mathcal{G}_2, \theta_2^\dagger(\mathbf{z}), \mathbf{z})) > 0$ for each $\mathbf{z}$, and hence for the marginal (averaged over $\mathbf{Z}$). \hfill $\square$
+
+\begin{assumption}[Non-Degeneracy]
+\label{as:nondegen}
+$P_\xi(X_j = \ell \mid X_{\mathrm{pa}(j)} = x_{\mathrm{pa}(j)}, \mathbf{Z} = \mathbf{z}) > 0$ for all $j$, all levels $\ell$, all parent configurations $x_{\mathrm{pa}(j)}$, and all covariate values $\mathbf{z}$ in the support of $\mathbf{Z}$.
+\end{assumption}
+
+
+### Survey Design Assumptions
+
+\begin{assumption}[Positivity]
+\label{as:pos}
+Every unit $i \in U_N$ has a known, strictly positive first-order inclusion probability: $\pi_i = \Pr(i \in S_n) > 0$.
+\end{assumption}
+
+\begin{assumption}[Bounded Weights]
+\label{as:bdd}
+There exist constants $0 < c \leq C < \infty$, independent of $N$, such that $c \leq n\pi_i / (n/N)^{-1} \leq C$ for all $i \in U_N$. Equivalently, $c \leq nw_i / N \leq C$, so that no single unit dominates the pseudo-likelihood.
+\end{assumption}
+
+\begin{assumption}[Design Consistency]
+\label{as:design}
+For any bounded, measurable function $g$ on the sample space of $\mathbf{X}$,
+$$\frac{1}{N}\sum_{i \in S_n} w_i \, g(\mathbf{x}_i) - \frac{1}{N}\sum_{i \in U_N} g(\mathbf{x}_i) \xrightarrow{p} 0$$
+under the design distribution $p_N$, for each fixed realization of $U_N$.
+\end{assumption}
+
+\noindent Assumption \ref{as:design} is satisfied by standard survey designs (stratified random sampling, probability-proportional-to-size sampling, and multi-stage designs with a growing number of primary sampling units) under Assumptions \ref{as:pos}--\ref{as:bdd}; see @Fuller2009 [Ch.\ 1] and @Breidt2017.
+
+
+### Regularity Assumptions
+
+\begin{assumption}[Regularity]
+\label{as:reg}
+For each DAG $\mathcal{G}$: (i) the parameter space $\Theta_{\mathcal{G}}$ is compact; (ii) $\log P(\mathbf{x} \mid \mathcal{G}, \theta, \mathbf{z})$ is twice continuously differentiable in $\theta$ for each $(\mathbf{x}, \mathbf{z})$; (iii) the superpopulation expected log-likelihood $Q_\xi(\theta \mid \mathcal{G}) = \E_\xi[\log P(\mathbf{X} \mid \mathcal{G}, \theta, \mathbf{Z})]$ has a unique maximizer $\theta^*_{\mathcal{G}}$ with nonsingular Hessian; and (iv) the family $\{\theta \mapsto \log P(\mathbf{x} \mid \mathcal{G}, \theta, \mathbf{z}) : (\mathbf{x}, \mathbf{z}) \in \mathrm{supp}(P_\xi)\}$ satisfies a Lipschitz condition in $\theta$ uniformly over $(\mathbf{x}, \mathbf{z})$.
+\end{assumption}
+
+\noindent For the oBN with finitely many ordinal levels, condition (iv) is automatic since the sample space of $\mathbf{X}$ is finite and $F$ is smooth.
+
+
+## Main Results
+
+Define the survey-weighted pseudo-log-likelihood under DAG $\mathcal{G}$ as
+$$\tilde{\ell}(\theta \mid \mathcal{G}) = \sum_{i \in S_n} w_i \log P(\mathbf{x}_i \mid \mathcal{G}, \theta, \mathbf{z}_i),$$
+the pseudo-MLE as $\hat{\theta}^w_{\mathcal{G}} = \arg\max_\theta \tilde{\ell}(\theta \mid \mathcal{G})$, and the survey-weighted pseudo-BIC as
+$$\widetilde{\mathrm{BIC}}(\mathcal{G}) = -2\,\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}} \mid \mathcal{G}) + K_{\mathcal{G}} \cdot \rho_n,$$
+where $K_{\mathcal{G}} = \sum_{j=1}^q \bigl(L_j - 1 + \sum_{k \in \mathrm{pa}(j)}(L_k - 1) + \dim(\delta_j)\bigr)$ is the number of free parameters and $\rho_n$ is a penalty sequence satisfying $\rho_n \to \infty$ and $\rho_n / N \to 0$.
+
+\begin{proposition}[Pseudo-MLE Consistency]
+\label{prop:pmle}
+Under Assumptions \ref{as:ord} and \ref{as:nondegen}--\ref{as:reg}, for each DAG $\mathcal{G}$,
+$$\hat{\theta}^w_{\mathcal{G}} \xrightarrow{p} \theta^*_{\mathcal{G}}$$
+under the joint (superpopulation $\times$ design) probability, where $\theta^*_{\mathcal{G}}$ is the superpopulation KL-optimal parameter under $\mathcal{G}$.
+\end{proposition}
+
+*Proof sketch.* The argument chains two convergences. First, by Assumption \ref{as:design}, the normalized pseudo-log-likelihood $N^{-1}\tilde{\ell}(\theta \mid \mathcal{G})$ converges in probability to the normalized census log-likelihood $N^{-1}\ell_U(\theta \mid \mathcal{G}) = N^{-1}\sum_{i \in U_N} \log P(\mathbf{x}_i \mid \mathcal{G}, \theta, \mathbf{z}_i)$ uniformly in $\theta$, by a Glivenko--Cantelli argument for the function class $\{\theta \mapsto \log P(\mathbf{x} \mid \mathcal{G}, \theta, \mathbf{z})\}$ under bounded weights (Assumption \ref{as:bdd}). Second, by the superpopulation law of large numbers (Assumption \ref{as:nondegen}), the normalized census log-likelihood converges almost surely to $Q_\xi(\theta \mid \mathcal{G})$. The unique maximizer property (Assumption \ref{as:reg}(iii)) and the compactness of $\Theta_{\mathcal{G}}$ then give convergence of the argmax. The full proof is in Appendix A.1. \hfill $\square$
+
+\begin{theorem}[DAG Selection Consistency --- Within Markov Equivalence Classes]
+\label{thm:within}
+Under Assumptions \ref{as:suff}--\ref{as:reg}, let $\mathcal{G}^*$ be the true data-generating DAG and $\mathcal{G}'$ any DAG Markov-equivalent to $\mathcal{G}^*$ with $\mathcal{G}' \neq \mathcal{G}^*$. Then
+$$\Pr\!\left(\widetilde{\mathrm{BIC}}(\mathcal{G}^*) < \widetilde{\mathrm{BIC}}(\mathcal{G}')\right) \to 1.$$
+\end{theorem}
+
+*Proof sketch.* Since $\mathcal{G}^*$ and $\mathcal{G}'$ are Markov-equivalent, they share the same skeleton and hence the same number of parameters: $K_{\mathcal{G}^*} = K_{\mathcal{G}'}$. The penalty terms cancel in the BIC difference, which reduces to
+$$\widetilde{\mathrm{BIC}}(\mathcal{G}^*) - \widetilde{\mathrm{BIC}}(\mathcal{G}') = -2\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}'} \mid \mathcal{G}')\right].$$
+By Proposition \ref{prop:pmle} and the uniform convergence established in its proof,
+$$\begin{aligned}
+\frac{1}{N}\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*) - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}'} \mid \mathcal{G}')\right] &\xrightarrow{p} Q_\xi(\theta^*_{\mathcal{G}^*} \mid \mathcal{G}^*) - Q_\xi(\theta^\dagger_{\mathcal{G}'} \mid \mathcal{G}') \\ &= \KL\!\left(P_\xi(\cdot \mid \mathcal{G}^*, \theta^*) \,\|\, P(\cdot \mid \mathcal{G}', \theta^\dagger)\right).
+\end{aligned}$$
+By Assumption \ref{as:ident} (ordinal identifiability, extended to the covariate-adjusted case by Proposition \ref{prop:ident-z}), this KL divergence is strictly positive. Therefore the pseudo-log-likelihood ratio diverges as $N \cdot \KL \cdot (1 + o_p(1)) \to \infty$, and $\widetilde{\mathrm{BIC}}(\mathcal{G}^*) - \widetilde{\mathrm{BIC}}(\mathcal{G}') \to -\infty$ in probability. The full proof is in Appendix A.2. \hfill $\square$
+
+This is the key result: the survey-weighted oBN can correctly orient edges within Markov equivalence classes, a property that neither categorical BNs nor constraint-based methods possess for ordinal data. Importantly, this result holds for *any* penalty sequence $\rho_n$ satisfying the stated conditions, because the penalty cancels entirely --- the discrimination within equivalence classes is driven solely by the pseudo-likelihood, not the penalty.
+
+\begin{remark}
+Theorem \ref{thm:within} relies on the exact cancellation of the penalty terms, $K_{\mathcal{G}^*} = K_{\mathcal{G}'}$. This holds exactly when all ordinal variables share a homogeneous scale (e.g., all $X_j$ have $L$ levels, as is common in standardized survey Likert items). If the variables have heterogeneous numbers of levels, the parameter counts between Markov-equivalent DAGs may differ slightly. In such cases, the penalty difference is at most $O(\rho_n)$, which is asymptotically dominated by the $O(N)$ pseudo-likelihood ratio, ensuring selection consistency is preserved asymptotically.
+\end{remark}
+
+\begin{theorem}[DAG Selection Consistency --- Across Markov Equivalence Classes]
+\label{thm:across}
+Under Assumptions \ref{as:suff}--\ref{as:reg}, let $\mathcal{G}''$ be any DAG not Markov-equivalent to $\mathcal{G}^*$. Then:
+
+(a) If $\mathcal{G}''$ has strictly fewer edges than $\mathcal{G}^*$ (underfitting), $\Pr(\widetilde{\mathrm{BIC}}(\mathcal{G}^*) < \widetilde{\mathrm{BIC}}(\mathcal{G}'')) \to 1$.
+
+(b) If $\mathcal{G}''$ has strictly more edges than $\mathcal{G}^*$ (overfitting) and the penalty satisfies $\rho_n / N \to 0$ and $\rho_n \to \infty$, then $\Pr(\widetilde{\mathrm{BIC}}(\mathcal{G}^*) < \widetilde{\mathrm{BIC}}(\mathcal{G}'')) \to 1$.
+\end{theorem}
+
+*Proof sketch.* For part (a), the underfitting DAG $\mathcal{G}''$ misses at least one true edge. By faithfulness (Assumption \ref{as:faith}), it encodes a conditional independence that does not hold in $P_\xi$, so $Q_\xi(\theta^*_{\mathcal{G}^*} \mid \mathcal{G}^*) > Q_\xi(\theta^\dagger_{\mathcal{G}''} \mid \mathcal{G}'')$. The pseudo-log-likelihood ratio diverges at rate $N$, overwhelming any penalty difference.
+
+For part (b), the overfitting DAG $\mathcal{G}''$ includes at least one spurious edge, so $K_{\mathcal{G}''} > K_{\mathcal{G}^*}$. The pseudo-log-likelihood gain from the spurious parameters is $O_p(1)$ (by a Wilks-type argument for the pseudo-likelihood), while the penalty difference $(K_{\mathcal{G}''} - K_{\mathcal{G}^*})\rho_n \to \infty$. Therefore the BIC favors the sparser $\mathcal{G}^*$. The full proof is in Appendix A.3. \hfill $\square$
+
+
+## The Role of $n_{\mathrm{eff}}$ and Penalty Calibration
+
+Theorems \ref{thm:within} and \ref{thm:across} establish consistency for any penalty $\rho_n$ satisfying the sandwich condition $\rho_n \to \infty$, $\rho_n / N \to 0$. In practice, the choice of $\rho_n$ affects finite-sample model selection. We use $\rho_n = \log(n_{\mathrm{eff}})$ with Kish's effective sample size $n_{\mathrm{eff}} = (\sum w_i)^2 / \sum w_i^2$, following the information-theoretic justification of @Lumley2015.
+
+The motivation is as follows. The pseudo-log-likelihood $\tilde{\ell}(\theta \mid \mathcal{G})$ is of order $N$ (it estimates the census log-likelihood), but the statistical precision of $\hat{\theta}^w_{\mathcal{G}}$ is governed by the design-based variance, which is of order $1/n_{\mathrm{eff}}$. When the BIC is used for model selection, the penalty must be calibrated to the scale of the pseudo-likelihood ratio under the null (no true edge). Under standard asymptotics, this ratio is
+$$\Lambda_w = 2\!\left[\tilde{\ell}(\hat{\theta}^w_{\mathcal{G}''} \mid \mathcal{G}'') - \tilde{\ell}(\hat{\theta}^w_{\mathcal{G}^*} \mid \mathcal{G}^*)\right] \xrightarrow{d} \sum_{j=1}^{K_{\mathcal{G}''} - K_{\mathcal{G}^*}} \delta_j \chi^2_{1,j},$$
+where $\delta_j$ are the generalized design effects --- eigenvalues of $\mathcal{I}_\xi^{-1} V_p$, with $\mathcal{I}_\xi$ the superpopulation Fisher information and $V_p$ the design-based variance of the pseudo-score. The mean of $\Lambda_w$ under the null is $\sum_j \delta_j$, which is approximately $(K_{\mathcal{G}''} - K_{\mathcal{G}^*}) \cdot \bar{\delta}$, where $\bar{\delta}$ is the average design effect. Using $\rho_n = \log(n_{\mathrm{eff}})$ with the Kish approximation $\bar{\delta} \approx n / n_{\mathrm{eff}}$ ensures that the penalty grows at the rate appropriate to the effective information content of the sample.
+
+Two observations are important for practice. First, for discrimination within Markov equivalence classes (Theorem \ref{thm:within}), the penalty plays no role, so the choice of $n_{\mathrm{eff}}$ does not affect the oBN's distinctive contribution --- full edge orientation. Second, the Kish $n_{\mathrm{eff}}$ is a global scalar approximation to a matrix-valued, node-specific quantity. When design effects are heterogeneous across node regressions, this approximation may lead to modest over- or under-penalization of specific edges in finite samples. A node-specific correction, replacing $n_{\mathrm{eff}}$ with $\hat{n}_{\mathrm{eff},j}$ estimated from the ratio of the pseudo-score variance to the Hessian for each node's ordinal regression, would provide tighter calibration at the cost of additional computation.
+
+## References
+

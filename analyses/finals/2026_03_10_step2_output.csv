@@ -1,0 +1,11 @@
+"","n_HelpCaregive","n_HelpChildcare","n_HelpTransport","n_HelpInternet","n_HelpLegal","o_mh","o_wb","n_clust_basics","n_clust_work_edu","n_clust_discrim_iso"
+"n_HelpCaregive",0,1,1,0,1,0,1,0,0,1
+"n_HelpChildcare",0,0,0,1,0,0,0,0,1,1
+"n_HelpTransport",1,0,0,1,1,0,0,1,1,0
+"n_HelpInternet",0,0,0,0,1,0,0,1,0,1
+"n_HelpLegal",0,0,0,0,0,0,0,1,1,1
+"o_mh",0,0,0,0,0,0,0,0,0,1
+"o_wb",0,0,0,0,0,1,0,1,1,1
+"n_clust_basics",0,0,0,0,0,0,0,0,1,1
+"n_clust_work_edu",0,0,0,0,0,0,0,0,0,1
+"n_clust_discrim_iso",0,0,0,0,0,0,0,0,0,0
