@@ -1,0 +1,17 @@
+============================================
+SLURM Job ID:    22767573
+Array Task ID:   78
+Array Task Max:  300
+Node:            
+Working Dir:     /ihome/spurkayastha/soumik/2026_surveyCD/simulations
+Start Time:      Mon Apr  6 12:35:42 AM EDT 2026
+============================================
+Array 78/300: tasks 925-936 (12 tasks)
+Studies in this chunk: 1c
+  [5/12] Study 1c | 15.5s | 3.5 tasks/min | ETA 2.0 min
+  [10/12] Study 1c | 16.6s | 3.7 tasks/min | ETA 0.5 min
+  [12/12] Study 1c | 15.9s | 3.7 tasks/min | ETA 0.0 min
+
+Saved 12 rows -> /ihome/spurkayastha/soumik/2026_surveyCD/simulations/sim_results/results_0078.rds (3.2 min, 0 errors)
+End Time: Mon Apr  6 12:38:56 AM EDT 2026
+Exit Code: 0
