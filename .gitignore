@@ -47,3 +47,18 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# inst archive (large/sensitive)
+inst/archive/
+
+# Bootstrap chunk outputs
+inst/analysis/boot_chunks_*/
+
+# Simulation raw results and logs
+inst/simulations/cluster/sim_results/
+inst/simulations/cluster/log/
+inst/simulations/laptop/sim_study*_results.RData
+inst/simulations/laptop/archive/
+
+# Data raw intermediate files
+data-raw/*.rds

@@ -1,0 +1,36 @@
+Package: swaoBN
+Title: Survey-Weighted, Covariate-Adjusted Ordinal Bayesian Network Learning
+Version: 0.1.0
+Authors@R: 
+    person("Soumik", "Purkayastha", email = "soumik@pitt.edu",
+           role = c("aut", "cre"),
+           comment = c(ORCID = ""))
+Description: Implements swa-oBN (Survey-Weighted, Covariate-Adjusted Ordinal
+    Bayesian Network), a method for causal discovery from complex survey data
+    with ordinal variables. The method extends the ordinal causal discovery
+    framework of Ni and Mallick (2022) with: (a) covariate adjustment via
+    ordinal regression, (b) survey weights with effective sample size in the
+    BIC penalty, (c) expert constraints via blacklists and whitelists, and
+    (d) two-step scoring that separates skeleton discovery (penalized pseudo-BIC)
+    from edge orientation (unpenalized pseudo-likelihood ratio). This separation
+    ensures DAG selection consistency for heterogeneous ordinal levels.
+License: GPL-3
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    MASS,
+    stats,
+    igraph,
+    gRbase,
+    bnlearn
+Suggests:
+    knitr,
+    rmarkdown,
+    ggplot2
+VignetteBuilder: knitr
+URL: https://github.com/soumikp/swaoBN
+BugReports: https://github.com/soumikp/swaoBN/issues
+LazyData: true

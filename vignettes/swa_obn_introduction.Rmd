@@ -1,0 +1,111 @@
+---
+title: "Introduction to swaoBN"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Introduction to swaoBN}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+## Introduction
+
+The `swaoBN` package provides tools to estimate causal structures (Directed Acyclic Graphs, or DAGs) from complex survey data containing ordinal variables. It extends ordinal causal discovery by accommodating covariate adjustment, informative sampling weights, and expert constraints (blacklists/whitelists).
+
+The main function is `swa_obn()`, which uses a two-step scoring approach:
+1. **Skeleton Discovery**: Add/delete moves are scored using a penalized pseudo-BIC (incorporating Kish's effective sample size).
+2. **Edge Orientation**: Reversal moves are scored using an unpenalized pseudo-likelihood ratio to avoid finite-sample bias when ordinal levels vary across variables.
+
+## Example: Synthetic Toy Data
+
+We will demonstrate `swa_obn` using a synthetic dataset (`swaoBN_toy`) bundled with the package. This dataset was generated to resemble the structure of survey data with 13 ordinal "need" variables.
+
+```{r setup}
+library(swaoBN)
+# Load the toy data
+data("swaoBN_toy", package = "swaoBN")
+
+toy_data <- swaoBN_toy$data
+toy_weights <- swaoBN_toy$weights
+```
+
+### Running the Point Estimate
+
+To estimate the causal structure, we supply the ordinal dataset and the survey weights:
+
+```{r fit-point, warning=FALSE, message=FALSE}
+# Fit the survey-weighted ordinal Bayesian network
+fit <- swa_obn(
+  y = toy_data,
+  weights = toy_weights,
+  search = "greedy",
+  ic = "bic",
+  nstart = 5,   # Use 5 random restarts to avoid local optima
+  maxit = 50    # Max iterations per restart
+)
+
+# The result is an adjacency matrix
+# fit$gam[i, j] = 1 indicates a directed edge from j to i
+print(fit$gam[1:5, 1:5])
+```
+
+### Bootstrapping for Edge Inclusion Probabilities
+
+Point estimates of DAGs are inherently uncertain. We recommend using the pairs bootstrap to quantify this uncertainty. `swa_obn()` will automatically perform the bootstrap if the `boot` argument is provided.
+
+*Note: The following code is eval = FALSE to save vignette build time. In practice, `boot = 500` is recommended.*
+
+```{r boot-example, eval=FALSE}
+fit_boot <- swa_obn(
+  y = toy_data,
+  weights = toy_weights,
+  boot = 100,      # Number of bootstrap replicates
+  nstart = 5,
+  verbose = TRUE
+)
+
+# The inclusion probabilities for each directed edge
+print(fit_boot$edge_probs[1:5, 1:5])
+```
+
+## Advanced Features
+
+### Covariate Adjustment
+
+If there are continuous or categorical confounders `Z` that are not part of the causal graph but need to be adjusted for, supply them via the `Z` argument:
+
+```{r covars, eval=FALSE}
+# Example with synthetic covariates
+Z_matrix <- data.frame(Age = rnorm(300), Sex = rbinom(300, 1, 0.5))
+
+fit_Z <- swa_obn(
+  y = toy_data,
+  Z = Z_matrix,
+  weights = toy_weights
+)
+```
+
+### Expert Constraints
+
+You can forbid specific edges (blacklist) or require specific edges (whitelist). Constraints are specified as a two-column matrix of `(from, to)` indices.
+
+```{r constraints, eval=FALSE}
+# Forbid an edge from variable 3 to variable 1
+bl <- matrix(c(3, 1), ncol = 2)
+
+# Require an edge from variable 1 to variable 2
+wl <- matrix(c(1, 2), ncol = 2)
+
+fit_constrained <- swa_obn(
+  y = toy_data,
+  weights = toy_weights,
+  blacklist = bl,
+  whitelist = wl
+)
+```
