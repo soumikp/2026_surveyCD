@@ -1,0 +1,179 @@
+
+=========================================================
+ VERIFICATION: §7 APPLICATION + APPENDIX F
+=========================================================
+
+--- Loading bootstrap outputs ---
+
+  Weighted:   B_valid=250 / B_total=250  (claimed: 250 / 250)
+  Unweighted: B_valid=250 / B_total=250  (claimed: 250 / 250)
+
+--- Consensus DAG (weighted, p >= 0.50) ---
+  [OK   ] Total consensus edges (>=0.50)                     computed=14           claimed=14.00
+  [OK   ] Robust edges (>=0.75)                              computed=8            claimed=8.00
+  [OK   ] Suggestive edges [0.50,0.75)                       computed=6            claimed=6.00
+
+  Edge probabilities (weighted, p >= 0.50, sorted):
+                from                  to     p
+                o_mh n_clust_discrim_iso 1.000
+     n_HelpTransport      n_clust_basics 0.996
+                o_wb n_clust_discrim_iso 0.996
+      n_HelpInternet      n_clust_basics 0.928
+    n_clust_work_edu      n_clust_basics 0.920
+                o_wb      n_HelpCaregive 0.880
+    n_clust_work_edu n_clust_discrim_iso 0.816
+         n_HelpLegal      n_clust_basics 0.812
+      n_HelpCaregive     n_HelpTransport 0.696
+ n_clust_discrim_iso      n_clust_basics 0.676
+      n_HelpCaregive n_clust_discrim_iso 0.660
+ n_clust_discrim_iso      n_HelpInternet 0.652
+         n_HelpLegal      n_HelpInternet 0.604
+                o_mh                o_wb 0.544
+
+--- Childcare connectivity ---
+  [OK   ] Childcare out-degree at p>=0.50                    computed=0            claimed=0.00
+  [OK   ] Childcare in-degree  at p>=0.50                    computed=0            claimed=0.00
+  Max childcare in-prob:  0.044
+  Max childcare out-prob: 0.400
+
+--- MH<->WB orientation ---
+  [MISMATCH] p(WB -> MH) weighted                               computed=0.46         claimed=0.54
+  [MISMATCH] p(MH -> WB) weighted                               computed=0.54         claimed=0.46
+  Sum (sanity, expect ~1): 1.000
+
+--- Blacklist verification ---
+  [OK   ] Blacklist cells count (need x outcome)             computed=16           claimed=16.00
+  [MISMATCH] Max p in blacklist cells (weighted)                computed=1.00         claimed=0.00
+  [MISMATCH] Max p in blacklist cells (unweighted)              computed=1.00         claimed=0.00
+
+--- Weighted vs Unweighted comparison ---
+  [OK   ] Total weighted edges (>=0.50)                      computed=14           claimed=14.00
+  [MISMATCH] Total unweighted edges (>=0.50)                    computed=23           claimed=18.00
+  [OK   ] Shared edges                                       computed=11           claimed=11.00
+  [MISMATCH] Only-unweighted edges                              computed=12           claimed=7.00
+  [OK   ] Only-weighted edges                                computed=3            claimed=3.00
+  [MISMATCH] Reversed edges                                     computed=3            claimed=1.00
+
+  Reversed edge(s): [1] "n_clust_discrim_iso->n_clust_basics" "n_clust_discrim_iso->n_HelpInternet"
+[3] "n_HelpLegal->n_HelpInternet"        
+  Only-weighted edges:   [1] "n_clust_discrim_iso->n_clust_basics" "n_clust_discrim_iso->n_HelpInternet"
+[3] "n_HelpLegal->n_HelpInternet"        
+  Only-unweighted edges:  [1] "n_HelpChildcare->n_HelpCaregive"     
+ [2] "n_HelpTransport->n_HelpInternet"     
+ [3] "n_HelpCaregive->n_HelpLegal"         
+ [4] "n_HelpInternet->n_HelpLegal"         
+ [5] "n_clust_work_edu->n_HelpLegal"       
+ [6] "n_HelpCaregive->n_clust_basics"      
+ [7] "o_wb->n_clust_basics"                
+ [8] "n_HelpChildcare->n_clust_work_edu"   
+ [9] "n_HelpTransport->n_clust_discrim_iso"
+[10] "n_HelpInternet->n_clust_discrim_iso" 
+[11] "n_HelpLegal->n_clust_discrim_iso"    
+[12] "n_clust_basics->n_clust_discrim_iso" 
+
+--- Discrimination/Isolation out-degree ---
+  [MISMATCH] Discrim out-degree (weighted)                      computed=2            claimed=4.00
+  [MISMATCH] Discrim out-degree (unweighted)                    computed=0            claimed=8.00
+
+--- App F: three severing comparisons ---
+  basic -> discrim:    weighted=0.32  unweighted=0.67  (claim: 0.68 / 0.44)
+  discrim -> basic:    weighted=0.68  unweighted=0.33  (claim: 0.32 / 0.56)
+  basic -> WB:         weighted=0.00  unweighted=0.00  (claim: 0.15 / 0.78)
+  internet -> discrim: weighted=0.34  unweighted=0.95  (claim: 0.65 / 0.16)
+
+--- App E: cells flipping across 0.50 ---
+  [MISMATCH] Cells flipping across 0.50                         computed=14           claimed=10.00
+
+  Flipping cells (weighted vs unweighted):
+                from                  to  p_sw  p_uw
+     n_HelpChildcare      n_HelpCaregive 0.264 0.536
+     n_HelpTransport      n_HelpInternet 0.412 0.808
+         n_HelpLegal      n_HelpInternet 0.604 0.368
+ n_clust_discrim_iso      n_HelpInternet 0.652 0.036
+      n_HelpCaregive         n_HelpLegal 0.208 0.556
+      n_HelpInternet         n_HelpLegal 0.180 0.608
+    n_clust_work_edu         n_HelpLegal 0.468 0.876
+      n_HelpCaregive      n_clust_basics 0.432 0.816
+ n_clust_discrim_iso      n_clust_basics 0.676 0.332
+     n_HelpChildcare    n_clust_work_edu 0.212 0.524
+     n_HelpTransport n_clust_discrim_iso 0.352 0.904
+      n_HelpInternet n_clust_discrim_iso 0.336 0.948
+         n_HelpLegal n_clust_discrim_iso 0.484 0.648
+      n_clust_basics n_clust_discrim_iso 0.316 0.668
+
+--- Full edge probability matrices ---
+
+Weighted (rows = from, cols = to):
+                    n_HelpCaregive n_HelpChildcare n_HelpTransport
+n_HelpCaregive               0.000           0.004           0.696
+n_HelpChildcare              0.264           0.000           0.000
+n_HelpTransport              0.304           0.000           0.000
+n_HelpInternet               0.040           0.012           0.380
+n_HelpLegal                  0.228           0.000           0.228
+n_clust_basics               0.092           0.000           0.004
+n_clust_work_edu             0.000           0.044           0.016
+n_clust_discrim_iso          0.288           0.004           0.064
+o_mh                         0.116           0.000           0.044
+o_wb                         0.880           0.000           0.084
+                    n_HelpInternet n_HelpLegal n_clust_basics n_clust_work_edu
+n_HelpCaregive               0.036       0.208          0.432            0.008
+n_HelpChildcare              0.400       0.064          0.016            0.212
+n_HelpTransport              0.412       0.188          0.996            0.140
+n_HelpInternet               0.000       0.180          0.928            0.092
+n_HelpLegal                  0.604       0.000          0.812            0.288
+n_clust_basics               0.072       0.136          0.000            0.060
+n_clust_work_edu             0.352       0.468          0.920            0.000
+n_clust_discrim_iso          0.652       0.184          0.676            0.184
+o_mh                         0.012       0.180          0.124            0.012
+o_wb                         0.016       0.328          0.148            0.156
+                    n_clust_discrim_iso  o_mh  o_wb
+n_HelpCaregive                    0.660 0.000 0.000
+n_HelpChildcare                   0.156 0.000 0.000
+n_HelpTransport                   0.352 0.000 0.000
+n_HelpInternet                    0.336 0.000 0.000
+n_HelpLegal                       0.484 0.000 0.000
+n_clust_basics                    0.316 0.000 0.000
+n_clust_work_edu                  0.816 0.000 0.000
+n_clust_discrim_iso               0.000 0.000 0.000
+o_mh                              1.000 0.000 0.544
+o_wb                              0.996 0.456 0.000
+
+Unweighted (rows = from, cols = to):
+                    n_HelpCaregive n_HelpChildcare n_HelpTransport
+n_HelpCaregive               0.000           0.008           0.720
+n_HelpChildcare              0.536           0.000           0.004
+n_HelpTransport              0.280           0.004           0.000
+n_HelpInternet               0.044           0.036           0.180
+n_HelpLegal                  0.204           0.036           0.148
+n_clust_basics               0.112           0.020           0.024
+n_clust_work_edu             0.036           0.028           0.028
+n_clust_discrim_iso          0.064           0.036           0.024
+o_mh                         0.084           0.024           0.020
+o_wb                         0.928           0.012           0.272
+                    n_HelpInternet n_HelpLegal n_clust_basics n_clust_work_edu
+n_HelpCaregive               0.040       0.556          0.816            0.004
+n_HelpChildcare              0.272       0.472          0.092            0.524
+n_HelpTransport              0.808       0.492          0.976            0.048
+n_HelpInternet               0.000       0.608          0.992            0.076
+n_HelpLegal                  0.368       0.000          0.624            0.088
+n_clust_basics               0.008       0.368          0.000            0.064
+n_clust_work_edu             0.212       0.876          0.920            0.000
+n_clust_discrim_iso          0.036       0.352          0.332            0.072
+o_mh                         0.028       0.020          0.076            0.072
+o_wb                         0.016       0.104          0.916            0.056
+                    n_clust_discrim_iso  o_mh  o_wb
+n_HelpCaregive                    0.912 0.000 0.000
+n_HelpChildcare                   0.272 0.000 0.000
+n_HelpTransport                   0.904 0.000 0.000
+n_HelpInternet                    0.948 0.000 0.000
+n_HelpLegal                       0.648 0.000 0.000
+n_clust_basics                    0.668 0.000 0.000
+n_clust_work_edu                  0.928 0.000 0.000
+n_clust_discrim_iso               0.000 0.000 0.000
+o_mh                              1.000 0.000 0.852
+o_wb                              1.000 0.148 0.000
+
+=========================================================
+ END VERIFICATION
+=========================================================
+
