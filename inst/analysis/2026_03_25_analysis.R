@@ -1,7 +1,7 @@
 rm(list = ls())
-source(file.path(here::here(), "code", "2026_03_25_data.R"))
-source(file.path(here::here(), "code", "2026_03_25_functions.R"))
-source(file.path(here::here(), "code", "2026_03_25_plot.R"))
+source(file.path(here::here(), "inst/analysis", "2026_03_25_data.R"))
+source(file.path(here::here(), "inst/analysis", "2026_03_25_functions.R"))
+source(file.path(here::here(), "inst/analysis", "2026_03_25_plot.R"))
 pacman::p_load(ggtext)
 
 need_vars <- colnames(data)[str_detect(colnames(data), "n_")]

@@ -1,7 +1,7 @@
 rm(list = ls())
 pacman::p_load(here, tidyverse, pheatmap, reshape2, stringr)
 source("C:/Users/VHAPTHPURKAS/OneDrive - University of Pittsburgh/CHERP/2025_gordon_ccdf/analysis/2025_05_28_02_multinomial.R")
-source(file.path(here(), "analyses", "correlationsSHEP.R"))
+source(file.path( "C:/Users/VHAPTHPURKAS/OneDrive - University of Pittsburgh/Research/2026_surveyCD/inst/archive/analyses", "correlationsSHEP.R"))
 shep_clustered <- data %>%
   rowwise() %>%
   mutate(
