@@ -258,15 +258,15 @@ for (r in seq_len(nrow(blacklist))) {
 
 # This will take a while...
 
-source(file.path(here::here(), "code", "2026_03_25_bootstrap_base.R"))
+#source(file.path(here::here(), "code", "2026_03_25_bootstrap_base.R"))
 
-boot_result_unwtd <- run_chunked_bootstrap(
-  y_data, Z_data, rep(1, length(w_data)),
-  blacklist = blacklist,
-  B_total = 250, chunk_size = 20,
-  nstart = 5, maxit = 25,
-  save_dir = file.path(here::here(), "code", "boot_chunks_PMAX_UW")
-)
+#boot_result_unwtd <- run_chunked_bootstrap(
+#  y_data, Z_data, rep(1, length(w_data)),
+#  blacklist = blacklist,
+#  B_total = 250, chunk_size = 20,
+#  nstart = 5, maxit = 25,
+#  save_dir = file.path(here::here(), "code", "boot_chunks_PMAX_UW")
+#)
 
 
 load_bootstrap_chunks <- function(save_dir = file.path(here::here(), "code", "boot_chunks_PMAX_UW"), var_names = NULL) {
@@ -346,7 +346,7 @@ my_short_names <- c(
   n_HelpLegal         = "Legal",
   n_clust_basics      = "Basic\nNeeds",
   n_clust_work_edu    = "Work/\nEducation",
-  n_clust_discrim_iso = "Discrim./\nIsolation",
+  n_clust_discrim_iso = "D/I",
   o_mh                = "Mental\nHealth",
   o_wb                = "Well-\nbeing"
 )
@@ -361,7 +361,7 @@ p2_uw <- plot_dag(
   layout      = "sugiyama",
   title       = "Consensus DAG (unweighted): veteran social needs and mental health outcomes",
 )
-ggsave(file.path(here(), "code", "2026_04_18_PMAX_UW.pdf"), p2_uw, height = 10, width = 15, device = cairo_pdf)
+ggsave(file.path(here(), "inst/analysis", "analysis_consensusDAG_uw.pdf"), p2_uw, height = 10, width = 15, device = cairo_pdf)
 
 p2_sw <- plot_dag(
   gam         = gam_point_sw,
@@ -373,7 +373,7 @@ p2_sw <- plot_dag(
   layout      = "sugiyama",
   title       = "Consensus DAG (weighted): veteran social needs and mental health outcomes",
 )
-ggsave(file.path(here(), "code", "2026_04_18_PMAX_SW.pdf"), p2_sw, height = 10, width = 15, device = cairo_pdf)
+ggsave(file.path(here(), "inst/analysis", "analysis_consensusDAG_sw.pdf"), p2_sw, height = 10, width = 15, device = cairo_pdf)
 
 
 layout_df <- data.frame(
@@ -441,6 +441,6 @@ fig4 <- (p_w | p_u) +
   plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
 
-ggsave(file.path(here(), "code", "2026_04_19_PMAX_BOTH.pdf"), fig4,
+ggsave(file.path(here(), "inst/analysis", "analysis_consensusDAG_both.pdf"), fig4,
   height = 10, width = 20, device = cairo_pdf
 )
