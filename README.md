@@ -2,6 +2,26 @@
 
 `swaoBN` is an R package for causal discovery from complex survey data with ordinal variables. The package implements a two-step scoring approach that separates skeleton discovery (using penalized pseudo-BIC) from edge orientation (using unpenalized pseudo-likelihood ratio), ensuring DAG selection consistency even when the number of ordinal levels varies across nodes.
 
+## Authors
+
+**Soumik Purkayastha** [![ORCID](https://img.shields.io/badge/ORCID-0000--0002--3619--2804-brightgreen)](https://orcid.org/0000-0002-3619-2804)
+Department of Biostatistics and Health Data Science, University of Pittsburgh School of Public Health;
+Center for Healthcare Evaluation, Research, and Promotion, VA Pittsburgh Healthcare System
+✉️ soumik@pitt.edu
+
+**Lauren E. Russell** [![ORCID](https://img.shields.io/badge/ORCID-0000--0001--8703--9271-brightgreen)](https://orcid.org/0000-0001-8703-9271)
+Office of Health Equity, Veterans Health Administration
+✉️ Lauren.Russell3@va.gov
+
+**David A. Frank** [![ORCID](https://img.shields.io/badge/ORCID-0009--0003--0282--787X-brightgreen)](https://orcid.org/0009-0003-0282-787X)
+Center for Healthcare Evaluation, Research, and Promotion, VA Pittsburgh Healthcare System
+✉️ David.Frank2@va.gov
+
+**Leslie R. M. Hausmann** [![ORCID](https://img.shields.io/badge/ORCID-0000--0002--3909--6009-brightgreen)](https://orcid.org/0000-0002-3909-6009)
+Center for Healthcare Evaluation, Research, and Promotion, VA Pittsburgh Healthcare System;
+Department of Medicine, University of Pittsburgh School of Medicine
+✉️ Leslie.Hausmann@va.gov
+
 ## Installation
 
 You can install the development version from GitHub:
