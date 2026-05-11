@@ -514,10 +514,13 @@ plot_dag <- function(gam,
         end_cap = circle(node_size * 0.35, "mm"),
         start_cap = circle(node_size * 0.35, "mm"),
         colour = "#2C3E50",
-        alpha = 0.9,
+        alpha = 0.75,
         angle_calc = "along",
         label_dodge = unit(3, "mm"),
-        label_size = 4.2
+        label_size = 4.2,
+        label_colour     = "#7B0000",      # dark red; swap "#1A237E" for navy
+        label_fontface   = "bold",
+        label_fill       = "white"         # white box behind each label
       )
       else if (!is.null(edge_probs))
         geom_edge_link(
@@ -526,7 +529,10 @@ plot_dag <- function(gam,
           end_cap = circle(node_size * 0.35, "mm"),
           start_cap = circle(node_size * 0.35, "mm"),
           colour = "#2C3E50",
-          alpha = 0.9
+          alpha = 0.9,
+          label_colour     = "#7B0000",      # dark red; swap "#1A237E" for navy
+          label_fontface   = "bold",
+          label_fill       = "white"         # white box behind each label
         )
       else
         geom_edge_link(
@@ -763,7 +769,8 @@ plot_dag_aligned <- function(edge_probs,
         angle_calc  = "along",
         label_pos   = 0.70,
         label_dodge = unit(3.5, "mm"),
-        label_size  = 6
+        label_size  = 4,
+        label_colour     = "#7B0000",      # dark red; swap "#1A237E" for navy
       )
     } else {
       p <- p + geom_edge_arc(
@@ -772,7 +779,8 @@ plot_dag_aligned <- function(edge_probs,
         arrow       = arrow(length = unit(3.5, "mm"), type = "closed"),
         end_cap     = circle(node_size * 0.40, "mm"),
         start_cap   = circle(node_size * 0.40, "mm"),
-        colour      = "#2C3E50", alpha = 0.9
+        colour      = "#2C3E50", alpha = 0.9,
+        label_colour     = "#7B0000"  
       )
     }
   }

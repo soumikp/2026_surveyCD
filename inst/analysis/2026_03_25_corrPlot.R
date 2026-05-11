@@ -1,5 +1,5 @@
 pacman::p_load(here, tidyverse, pheatmap, reshape2)
-source(file.path(here(), "analyses", "pullSHEP.R"))
+source(file.path(here(), "inst/analysis", "pullSHEP.R"))
 
 data <- dat_fin |> 
   select(need_vars, risk_vars, WEIGHT, WBS_total, RateHealth_T1, RateMentalHealth_T1, SURVID) |> 
@@ -100,15 +100,27 @@ colnames(data_cor) <- clean_names
 rownames(cluster_info) <- clean_names
 
 # Define the 8 colorblind-friendly hex codes
+# cb_palette <- c(
+#   "#999999", # Grey
+#   "#E69F00", # Orange
+#   "#56B4E9", # Sky Blue
+#   "#009E73", # Bluish Green
+#   "#F0E442", # Yellow
+#   "#0072B2", # Blue
+#   "#D55E00", # Vermillion
+#   "#CC79A7"  # Reddish Purple
+# )
+
+
 cb_palette <- c(
-  "#999999", # Grey
-  "#E69F00", # Orange
-  "#56B4E9", # Sky Blue
-  "#009E73", # Bluish Green
-  "#F0E442", # Yellow
-  "#0072B2", # Blue
-  "#D55E00", # Vermillion
-  "#CC79A7"  # Reddish Purple
+  "#999999", # Cluster 1: Grey (keep)
+  "#3D1A78", # Cluster 2: Deep Purple (keep)
+  "#1B7A1B", # Cluster 3: Dark Green (keep)
+  "#00CED1", # Cluster 4: Dark Turquoise
+  "#C875C4", # Cluster 5: Orchid/Magenta (keep)
+  "#8B4513", # Cluster 6: Saddle Brown (keep)
+  "#FF8C00", # Cluster 7: Dark Orange
+  "#2F4F4F"  # Cluster 8: Dark Slate Grey
 )
 
 # Create a mapping list for pheatmap
@@ -160,13 +172,14 @@ cor_map_needs <- pheatmap(
 # 
 if(FALSE){
   factor <- 1.5
-  ggsave("C:/Users/VHAPTHPURKAS/OneDrive - University of Pittsburgh/Research/2026_surveyCD/code/2026_04_20_clusterOutcomeNeed_weighted.pdf",
+  ggsave(file.path(here(), "inst/analysis", "analysis_polychoricHeatmap.pdf"),
          cor_map_needs,
          height = factor*8.5,
          width = factor*10,
          units = "in",
          device = "pdf")
 }
+
 
 # 
 # 

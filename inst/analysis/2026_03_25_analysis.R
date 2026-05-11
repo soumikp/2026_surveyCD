@@ -42,7 +42,7 @@ for (v in dag_vars) {
     "  %-25s %d levels  %s\n",
     v, nlevels(y_data[[v]]),
     ifelse(nlevels(y_data[[v]]) > 2, "[ordinal - identifiable]",
-      "[binary - limited]"
+           "[binary - limited]"
     )
   ))
 }
@@ -271,15 +271,15 @@ for (r in seq_len(nrow(blacklist))) {
 
 load_bootstrap_chunks <- function(save_dir = file.path(here::here(), "code", "boot_chunks_PMAX_UW"), var_names = NULL) {
   chunk_files <- sort(list.files(save_dir,
-    pattern = "^chunk_\\d+\\.rds$",
-    full.names = TRUE
+                                 pattern = "^chunk_\\d+\\.rds$",
+                                 full.names = TRUE
   ))
-
+  
   if (length(chunk_files) == 0) stop("No chunk files found in ", save_dir)
-
+  
   all_gams <- list()
   total_time <- 0
-
+  
   for (f in chunk_files) {
     chunk <- readRDS(f)
     all_gams <- c(all_gams, chunk$boot_gams)
@@ -289,12 +289,12 @@ load_bootstrap_chunks <- function(save_dir = file.path(here::here(), "code", "bo
       basename(f), chunk$b_start, chunk$b_end, chunk$elapsed_minutes
     ))
   }
-
+  
   cat(sprintf(
     "Total: %d resamples, %.1f min compute time\n",
     length(all_gams), total_time
   ))
-
+  
   q <- nrow(all_gams[[1]])
   adj_sum <- matrix(0, q, q)
   n_valid <- 0
@@ -304,13 +304,13 @@ load_bootstrap_chunks <- function(save_dir = file.path(here::here(), "code", "bo
       n_valid <- n_valid + 1
     }
   }
-
+  
   edge_probs <- adj_sum / n_valid
   if (!is.null(var_names)) {
     colnames(edge_probs) <- var_names
     rownames(edge_probs) <- var_names
   }
-
+  
   return(list(
     edge_probs = edge_probs,
     boot_gams = all_gams,
@@ -346,7 +346,7 @@ my_short_names <- c(
   n_HelpLegal         = "Legal",
   n_clust_basics      = "Basic\nNeeds",
   n_clust_work_edu    = "Work/\nEducation",
-  n_clust_discrim_iso = "D/I",
+  n_clust_discrim_iso = "I/L/D",
   o_mh                = "Mental\nHealth",
   o_wb                = "Well-\nbeing"
 )
@@ -391,14 +391,14 @@ layout_df <- data.frame(
 node_names <- dag_vars
 
 p_w <- plot_dag_aligned(edge_probs_sw, node_names, layout_df,
-  node_roles  = my_roles,
-  short_names = my_short_names,
-  title       = "(a) Weighted"
+                        node_roles  = my_roles,
+                        short_names = my_short_names,
+                        title       = "(a) Weighted"
 )
 p_u <- plot_dag_aligned(edge_probs_uw, node_names, layout_df,
-  node_roles  = my_roles,
-  short_names = my_short_names,
-  title       = "(b) Unweighted"
+                        node_roles  = my_roles,
+                        short_names = my_short_names,
+                        title       = "(b) Unweighted"
 )
 
 fig4 <- (p_w | p_u) +
@@ -427,14 +427,14 @@ edge_probs_u_fig4 <- edge_probs_uw[keep, keep]
 
 
 p_w <- plot_dag_aligned(edge_probs_w_fig4, node_names_fig4, layout_df_fig4,
-  node_roles  = my_roles,
-  short_names = my_short_names,
-  title       = "(a) Weighted"
+                        node_roles  = my_roles,
+                        short_names = my_short_names,
+                        title       = "(a) Weighted"
 )
 p_u <- plot_dag_aligned(edge_probs_u_fig4, node_names_fig4, layout_df_fig4,
-  node_roles  = my_roles,
-  short_names = my_short_names,
-  title       = "(b) Unweighted"
+                        node_roles  = my_roles,
+                        short_names = my_short_names,
+                        title       = "(b) Unweighted"
 )
 
 fig4 <- (p_w | p_u) +
@@ -442,5 +442,5 @@ fig4 <- (p_w | p_u) +
   theme(legend.position = "bottom")
 
 ggsave(file.path(here(), "inst/analysis", "analysis_consensusDAG_both.pdf"), fig4,
-  height = 10, width = 20, device = cairo_pdf
+       height = 10, width = 20, device = cairo_pdf
 )
