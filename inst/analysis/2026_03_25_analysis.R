@@ -440,7 +440,7 @@ p_u <- plot_dag_aligned(edge_probs_u_fig4, node_names_fig4, layout_df_fig4,
 fig4 <- (p_w | p_u) +
   plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
-
+factor <- 1.25
 ggsave(file.path(here(), "inst/analysis", "analysis_consensusDAG_both.pdf"), fig4,
-       height = 10, width = 20, device = cairo_pdf
+       height = factor*9, width = factor*21, device = cairo_pdf
 )

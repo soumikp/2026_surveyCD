@@ -769,7 +769,7 @@ plot_dag_aligned <- function(edge_probs,
         angle_calc  = "along",
         label_pos   = 0.70,
         label_dodge = unit(3.5, "mm"),
-        label_size  = 4,
+        label_size  = 6,
         label_colour     = "#7B0000",      # dark red; swap "#1A237E" for navy
       )
     } else {
