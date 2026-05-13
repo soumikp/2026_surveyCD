@@ -8,27 +8,7 @@
 #   (c) Expert constraints via blacklist / whitelist
 #   (d) Two-step scoring: penalized pseudo-BIC for skeleton discovery
 #       (add/delete), unpenalized pseudo-likelihood ratio for edge
-#       orientation (reversal). This separation ensures DAG selection
-#       consistency for heterogeneous ordinal levels (Theorem 1).
-#
-# Weight convention:
-#   User-supplied weights w_i = 1/pi_i are normalized internally to
-#   sum to n (the sample size). The pseudo-log-likelihood computed by
-#   polr/glm under these normalized weights targets the sample-scaled
-#   quantity (n/N) * sum_{i in U_N} log p(x_i | G, theta, z_i).
-#   The design-effect correction (n_eff / n) rescales this to the
-#   effective-information scale before applying the log(n_eff) penalty,
-#   following Lumley & Scott (2015).
-#
-# Note on polr vs svyolr:
-#   We use MASS::polr with normalized weights rather than survey::svyolr.
-#   For pseudo-log-likelihood computation (which is all we need for BIC
-#   scoring), the two are equivalent: both maximize sum_i w_i log p(y_i|.).
-#   The difference is in standard error computation — svyolr uses the
-#   sandwich estimator for design-based inference, while polr does not.
-#   Since we only extract logLik (not standard errors) from the fitted
-#   model, polr is sufficient and substantially faster. The same applies
-#   to stats::glm vs survey::svyglm for binary nodes.
+#       orientation (reversal). 
 # ==============================================================================
 
 library(MASS)
