@@ -1,6 +1,6 @@
 # swaoBN: Survey-Weighted, Covariate-Adjusted Ordinal Bayesian Network Learning
 
-## Survey-Weighted Ordinal Causal Discovery: Application to Veteran Social Needs and Health Indicators
+## Companion package for: "Survey-Weighted Ordinal Causal Discovery: Application to Veteran Social Needs and Health Indicators"
 
 `swaoBN` is an R package for causal discovery from complex survey data with ordinal variables. The package implements a two-step scoring approach that separates skeleton discovery (using penalized pseudo-BIC) from edge orientation (using unpenalized pseudo-likelihood ratio), ensuring DAG selection consistency even when the number of ordinal levels varies across nodes.
 
